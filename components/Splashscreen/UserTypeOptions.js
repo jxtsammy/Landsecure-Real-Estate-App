@@ -1,12 +1,12 @@
 import React from 'react';
-import { 
-  StyleSheet, 
-  View, 
-  Text, 
-  ImageBackground, 
-  TouchableOpacity, 
-  StatusBar, 
-  Dimensions 
+import {
+  StyleSheet,
+  View,
+  Text,
+  ImageBackground,
+  TouchableOpacity,
+  StatusBar,
+  Dimensions
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -16,8 +16,8 @@ const OnboardingScreen = ({navigation}) => {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
-      <ImageBackground 
-        source={{ uri: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1932&q=80' }} 
+      <ImageBackground
+        source={{ uri: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1932&q=80' }}
         style={styles.backgroundImage}
         resizeMode="cover"
       >
@@ -32,14 +32,14 @@ const OnboardingScreen = ({navigation}) => {
                 Join our secure platform for real estate transactions. Create an account or sign in to manage your properties and transactions with confidence.
               </Text>
             </View>
-            
+
             <View style={styles.buttonsContainer}>
               <TouchableOpacity style={styles.primaryButton} onPress={() => navigation.navigate("OwnerLogin")}>
                 <Text style={styles.primaryButtonText}>Continue As Property Owner</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.navigate("Login")}>
-                <Text style={styles.secondaryButtonText}>Continue As Buyer</Text>
+                <Text style={styles.secondaryButtonText}>Continue As Guest</Text>
               </TouchableOpacity>
             </View>
           </View>
