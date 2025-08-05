@@ -1,22 +1,25 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { 
-  SafeAreaView, 
-  StyleSheet, 
-  View, 
-  Text, 
-  TextInput, 
-  TouchableOpacity, 
-  Image, 
+import {
+  SafeAreaView,
+  StyleSheet,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Image,
   StatusBar,
   Dimensions,
   TouchableWithoutFeedback,
   KeyboardAvoidingView,
   ScrollView,
   Platform,
-  Keyboard
+  Keyboard,
+  Alert
 } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import Icon from 'react-native-vector-icons/Feather';
+import { requestPasswordReset, resetPassword } from '../../../services/api/auth/forgotPassword/forgotPassword'
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
 
@@ -24,9 +27,38 @@ const { width } = Dimensions.get('window');
 const ForgotPasswordScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const isEmailValid = email && email.includes('@') && email.includes('.');
+  const [loading, setLoading] = useState(false);
 
   const dismissKeyboard = () => {
     Keyboard.dismiss();
+  };
+
+  const handleVerifyPress = async () => {
+    if (!email) {
+      Alert.alert('Error', 'Please enter your email');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await requestPasswordReset(email);
+
+      Alert.alert(
+        'Email Sent',
+        'If this email exists in our system, you will receive a password reset link.',
+        [{
+          text: 'OK',
+          onPress: () => navigation.navigate('OTPVerification', { email })
+        }]
+      );
+
+    } catch (error) {
+      if (error.message.includes('Network')) {
+        Alert.alert('Offline', 'You need internet connection to proceed');
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -37,18 +69,18 @@ const ForgotPasswordScreen = ({ navigation }) => {
       <StatusBar barStyle="dark-content" />
       <TouchableWithoutFeedback onPress={dismissKeyboard}>
         <ScrollView style={styles.content} bounces={false}>
-          <Image 
-            source={{ uri: 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1470&q=80' }} 
-            style={styles.headerImage} 
+          <Image
+            source={{ uri: 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1470&q=80' }}
+            style={styles.headerImage}
             resizeMode="cover"
           />
-          
+
           <View style={styles.formContainer}>
             <Text style={styles.title}>Forgot Password</Text>
             <Text style={styles.subtitle}>
               Forgot Password, a digital key to regain access, navigating security hurdles in the ever-changing world of authentication.
             </Text>
-            
+
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Email</Text>
               <TextInput
@@ -60,22 +92,23 @@ const ForgotPasswordScreen = ({ navigation }) => {
                 placeholder="Enter your email"
               />
             </View>
-            
-            <TouchableOpacity 
+
+            <TouchableOpacity
               style={[
                 styles.primaryButton,
                 !isEmailValid && styles.disabledButton
               ]}
-              onPress={() => navigation.navigate('OTPVerification')}
+              onPress={handleVerifyPress}
               disabled={!isEmailValid}
+              title={loading ? 'Sending...' : 'Verify Email'}
             >
               <Text style={[
                 styles.buttonText,
                 !isEmailValid && styles.disabledButtonText
               ]}>Send Code</Text>
             </TouchableOpacity>
-            
-            <TouchableOpacity 
+
+            <TouchableOpacity
               style={styles.linkButton}
               onPress={() => navigation.goBack()}
             >
@@ -94,7 +127,7 @@ const OTPVerificationScreen = ({ navigation }) => {
   const [countdown, setCountdown] = useState(60);
   const [isResendDisabled, setIsResendDisabled] = useState(true);
   const inputRefs = useRef([]);
-  
+
   // Initialize refs for OTP inputs
   useEffect(() => {
     inputRefs.current = inputRefs.current.slice(0, 4);
@@ -122,11 +155,11 @@ const OTPVerificationScreen = ({ navigation }) => {
   const handleOtpChange = (value, index) => {
     // Only allow numbers
     if (!/^[0-9]?$/.test(value)) return;
-    
+
     const newOtp = [...otp];
     newOtp[index] = value;
     setOtp(newOtp);
-    
+
     // Auto focus to next input if a digit was entered
     if (value && index < 3) {
       inputRefs.current[index + 1].focus();
@@ -167,18 +200,18 @@ const OTPVerificationScreen = ({ navigation }) => {
       <StatusBar barStyle="dark-content" />
       <TouchableWithoutFeedback onPress={dismissKeyboard}>
         <ScrollView style={styles.content} bounces={false}>
-          <Image 
-            source={{ uri: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1470&q=80' }} 
-            style={styles.headerImage} 
+          <Image
+            source={{ uri: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1470&q=80' }}
+            style={styles.headerImage}
             resizeMode="cover"
           />
-          
+
           <View style={styles.formContainer}>
             <Text style={styles.title}>Enter Your OTP</Text>
             <Text style={styles.subtitle}>
               Enter Your OTP prompts the crucial moment of authentication, where a single code bridges the gap between access and security.
             </Text>
-            
+
             <View style={styles.otpContainer}>
               {otp.map((digit, index) => (
                 <TextInput
@@ -194,8 +227,8 @@ const OTPVerificationScreen = ({ navigation }) => {
                 />
               ))}
             </View>
-            
-            <TouchableOpacity 
+
+            <TouchableOpacity
               onPress={handleResend}
               disabled={isResendDisabled}
             >
@@ -203,13 +236,13 @@ const OTPVerificationScreen = ({ navigation }) => {
                 styles.resendText,
                 isResendDisabled ? styles.resendDisabled : styles.resendEnabled
               ]}>
-                {isResendDisabled 
-                  ? `Resend Code in ${countdown} Sec` 
+                {isResendDisabled
+                  ? `Resend Code in ${countdown} Sec`
                   : 'Resend Code'}
               </Text>
             </TouchableOpacity>
-            
-            <TouchableOpacity 
+
+            <TouchableOpacity
               style={[
                 styles.primaryButton,
                 !isOtpComplete && styles.disabledButton
@@ -242,6 +275,39 @@ const ResetPasswordScreen = ({ navigation }) => {
     Keyboard.dismiss();
   };
 
+  const handlePasswordReset = async () => {
+    if (newPassword !== confirmPassword) {
+      Alert.alert('Error', 'Passwords must match');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await resetPassword(token, newPassword);
+
+      Alert.alert(
+        'Password Updated',
+        'You can now login with your new password',
+        [{
+          text: 'Continue to Login',
+          onPress: () => navigation.replace('Login') // Clear navigation stack
+        }]
+      );
+
+    } catch (error) {
+      if (error.message.includes('Invalid or expired')) {
+        // Special handling for token errors
+        navigation.replace('ForgotPassword'); // Send back to start
+        Alert.alert('Expired Link', 'Please request a new password reset link');
+      } else {
+        Alert.alert('Error', error.message);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -250,18 +316,18 @@ const ResetPasswordScreen = ({ navigation }) => {
       <StatusBar barStyle="dark-content" />
       <TouchableWithoutFeedback onPress={dismissKeyboard}>
         <ScrollView style={styles.content} bounces={false}>
-          <Image 
-            source={{ uri: 'https://images.unsplash.com/photo-1613977257363-707ba9348227?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1470&q=80' }} 
-            style={styles.headerImage} 
+          <Image
+            source={{ uri: 'https://images.unsplash.com/photo-1613977257363-707ba9348227?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1470&q=80' }}
+            style={styles.headerImage}
             resizeMode="cover"
           />
-          
+
           <View style={styles.formContainer}>
             <Text style={styles.title}>Reset Password</Text>
             <Text style={styles.subtitle}>
               Reset Password signifies the gateway to reclaiming control over digital identity, offering a fresh start amidst the chaos of forgotten credentials.
             </Text>
-            
+
             <View style={styles.inputGroup}>
               <Text style={styles.label}>New Password</Text>
               <View style={styles.passwordContainer}>
@@ -274,16 +340,16 @@ const ResetPasswordScreen = ({ navigation }) => {
                   placeholder="Enter new password"
                 />
                 <TouchableWithoutFeedback onPress={() => setShowNewPassword(!showNewPassword)}>
-                  <Icon 
-                    name={showNewPassword ? "eye" : "eye-off"} 
-                    size={20} 
-                    color="#888" 
+                  <Icon
+                    name={showNewPassword ? "eye" : "eye-off"}
+                    size={20}
+                    color="#888"
                     style={styles.eyeIcon}
                   />
                 </TouchableWithoutFeedback>
               </View>
             </View>
-            
+
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Confirm Password</Text>
               <View style={styles.passwordContainer}>
@@ -296,23 +362,24 @@ const ResetPasswordScreen = ({ navigation }) => {
                   placeholder="Confirm new password"
                 />
                 <TouchableWithoutFeedback onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
-                  <Icon 
-                    name={showConfirmPassword ? "eye" : "eye-off"} 
-                    size={20} 
-                    color="#888" 
+                  <Icon
+                    name={showConfirmPassword ? "eye" : "eye-off"}
+                    size={20}
+                    color="#888"
                     style={styles.eyeIcon}
                   />
                 </TouchableWithoutFeedback>
               </View>
             </View>
-            
-            <TouchableOpacity 
+
+            <TouchableOpacity
               style={[
                 styles.primaryButton,
                 !isFormValid && styles.disabledButton
               ]}
-              onPress={() => navigation.navigate('Login')}
+              onPress={handlePasswordReset}
               disabled={!isFormValid}
+              title={loading ? 'Updating...' : 'Reset Password'}
             >
               <Text style={[
                 styles.buttonText,
@@ -330,7 +397,7 @@ const Stack = createNativeStackNavigator();
 
 const App = () => {
   return (
-      <Stack.Navigator 
+      <Stack.Navigator
         initialRouteName="ForgotPassword"
         screenOptions={{
           headerShown: false

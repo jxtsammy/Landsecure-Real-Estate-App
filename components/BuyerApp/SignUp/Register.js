@@ -5,6 +5,8 @@ import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Image,
 import { SafeAreaView } from "react-native-safe-area-context"
 import { Eye, EyeOff, Camera, User, Upload, Check, X, ArrowLeft } from "lucide-react-native"
 import * as ImagePicker from "expo-image-picker"
+import { registerUser } from '../../../services/api/auth/register/buyerRegister'
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const SignUpScreen = ({ navigation }) => {
   // Form state
@@ -59,7 +61,7 @@ const SignUpScreen = ({ navigation }) => {
     if (passwordTouched) {
       setPasswordError(validatePassword(password));
     }
-    
+
     if (confirmPasswordTouched && confirmPassword) {
       setConfirmPasswordError(validateConfirmPassword(password, confirmPassword));
     }
@@ -124,32 +126,79 @@ const SignUpScreen = ({ navigation }) => {
   }
 
   // Handle sign up
-  const handleSignUp = () => {
-    setFormSubmitted(true)
-    setPasswordTouched(true)
-    setConfirmPasswordTouched(true)
-    
-    // Force validation before submission
-    setPasswordError(validatePassword(password))
-    setConfirmPasswordError(validateConfirmPassword(password, confirmPassword))
+  const [loading, setLoading] = useState(false);
 
-    if (isFormValid()) {
-      navigation.navigate("BottomNav")
-    } else {
-      Alert.alert("Error", "Please fill in all required fields correctly")
-    }
+const handleSignUp = async () => {
+  // Validation logic
+  setFormSubmitted(true);
+  setPasswordTouched(true);
+  setConfirmPasswordTouched(true);
+
+  const passwordErr = validatePassword(password);
+  const confirmPasswordErr = validateConfirmPassword(password, confirmPassword);
+  setPasswordError(passwordErr);
+  setConfirmPasswordError(confirmPasswordErr);
+
+  if (!isFormValid()) {
+    Alert.alert("Error", "Please fill in all required fields correctly");
+    return;
   }
+
+  setLoading(true);
+  try {
+    const userData = {
+      email,
+      password,
+      firstName,
+      lastName,
+      phone,
+      // other required fields
+    };
+
+    const { token, user } = await registerUser(userData);
+
+    // Store data securely
+    await AsyncStorage.multiSet([
+      ['@auth_token', token],
+      ['@user_email', email],
+      ['@user_role', 'buyer'], // or whatever role
+      ['@user_profile', JSON.stringify(user)]
+    ]);
+
+    // Navigate and clear navigation stack
+    navigation.reset({
+      index: 0,
+      routes: [{ name: "BottomNav" }],
+    });
+
+  } catch (error) {
+    let errorMessage = error.message;
+
+    // Special handling for network errors
+    if (error.message.includes('network', 'Network')) {
+      errorMessage = "Internet connection required. Check your network.";
+    }
+
+    Alert.alert("Registration Error", errorMessage);
+
+    // Clear sensitive fields
+    setPassword('');
+    setConfirmPassword('');
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <View style={styles.container}>
       {/* Back Button */}
-      <TouchableOpacity 
-        style={styles.backButton} 
+      <TouchableOpacity
+        style={styles.backButton}
         onPress={() => navigation.goBack()}
       >
         <ArrowLeft size={24} color="#005045" />
       </TouchableOpacity>
-      
+
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Text style={styles.title}>Create new account</Text>
 
@@ -288,7 +337,7 @@ const SignUpScreen = ({ navigation }) => {
         )}
 
         {/* Sign Up Button */}
-        <TouchableOpacity style={styles.signUpButton} onPress={handleSignUp}>
+        <TouchableOpacity style={styles.signUpButton} onPress={handleSignUp} title={loading ? "Creating account..." : "Sign Up"}>
           <Text style={styles.signUpButtonText}>Sign up</Text>
         </TouchableOpacity>
 

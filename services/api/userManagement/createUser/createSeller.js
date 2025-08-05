@@ -1,4 +1,4 @@
-import API from './config';
+import API from '../../config';
 
 // Create Seller
 export const createSeller = async (sellerData) => {

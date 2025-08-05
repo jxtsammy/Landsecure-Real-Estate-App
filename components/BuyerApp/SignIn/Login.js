@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  StyleSheet, 
-  View, 
-  Text, 
-  ImageBackground, 
-  TouchableOpacity, 
-  StatusBar, 
+import {
+  StyleSheet,
+  View,
+  Text,
+  ImageBackground,
+  TouchableOpacity,
+  StatusBar,
   Dimensions,
-  TextInput 
+  TextInput
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowLeft } from 'lucide-react-native'; // Import ArrowLeft icon
+import { loginBuyer } from '../../../services/api/auth/login/loginAuth'
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width, height } = Dimensions.get('window');
 
@@ -18,11 +20,13 @@ const LoginScreen = ({navigation}) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [greeting, setGreeting] = useState('');
+  const [loading, setLoading] = useState(false);
+
 
   useEffect(() => {
     // Set greeting based on time of day
     const currentHour = new Date().getHours();
-    
+
     if (currentHour >= 5 && currentHour < 12) {
       setGreeting('Good Morning');
     } else if (currentHour >= 12 && currentHour < 18) {
@@ -32,11 +36,51 @@ const LoginScreen = ({navigation}) => {
     }
   }, []);
 
+  const handleLogin = async () => {
+    // Basic validation
+    if (!email || !password) {
+      Alert.alert("Error", "Please enter both email and password");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const { token, user } = await loginBuyer(email, password);
+
+      // Store authentication data
+      await AsyncStorage.multiSet([
+        ['@auth_token', token],
+        ['@user_role', 'buyer'],
+        ['@user_email', email]
+      ]);
+
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "BottomNav" }],
+      });
+
+    } catch (error) {
+      let alertMessage = error.message;
+
+      // Special handling for certain errors
+      if (error.message.includes('network', 'Network')) {
+        alertMessage = "Internet connection required. Check your network.";
+      }
+
+      Alert.alert("Login Error", alertMessage);
+
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
-      <ImageBackground 
-        source={{ uri: 'https://images.unsplash.com/photo-1464082354059-27db6ce50048?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1170&q=80' }} 
+      <ImageBackground
+        source={{ uri: 'https://images.unsplash.com/photo-1464082354059-27db6ce50048?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1170&q=80' }}
         style={styles.backgroundImage}
         resizeMode="cover"
       >
@@ -45,15 +89,15 @@ const LoginScreen = ({navigation}) => {
           style={styles.gradient}
         >
           {/* Back Button with circular background */}
-          <TouchableOpacity 
-            style={styles.backButton} 
+          <TouchableOpacity
+            style={styles.backButton}
             onPress={() => navigation.navigate('UserType')}
           >
             <View style={styles.backButtonCircle}>
               <ArrowLeft size={20} color="#000" />
             </View>
           </TouchableOpacity>
-          
+
           <View style={styles.contentContainer}>
             <View style={styles.textContainer}>
               <Text style={styles.title}>{greeting}</Text>
@@ -61,7 +105,7 @@ const LoginScreen = ({navigation}) => {
                 Login to discover tons of verified lands and properties ready for sale, all in one app
               </Text>
             </View>
-            
+
             <View style={styles.formContainer}>
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Email</Text>
@@ -75,7 +119,7 @@ const LoginScreen = ({navigation}) => {
                   autoCapitalize="none"
                 />
               </View>
-              
+
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Password</Text>
                 <TextInput
@@ -87,15 +131,15 @@ const LoginScreen = ({navigation}) => {
                   secureTextEntry
                 />
               </View>
-              
+
               <TouchableOpacity style={styles.forgotPasswordContainer} onPress={() => navigation.navigate('ForgotPassword')}>
                 <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
               </TouchableOpacity>
-              
-              <TouchableOpacity style={styles.loginButton} onPress={() =>  navigation.navigate("BottomNav")}>
+
+              <TouchableOpacity style={styles.loginButton} onPress={handleLogin} title={loading ? "Logining in..." : "Login"}>
                 <Text style={styles.loginButtonText}>Login</Text>
               </TouchableOpacity>
-              
+
               <View style={styles.registerContainer}>
                 <Text style={styles.registerText}>Don't have an account? </Text>
                 <TouchableOpacity onPress={() =>  navigation.navigate("Register")}>
