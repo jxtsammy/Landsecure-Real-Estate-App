@@ -20,35 +20,37 @@ import {
   XCircle
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
+import { resetPassword } from '../../../services/api/auth/forgotPassword/forgotPassword'
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width, height } = Dimensions.get('window');
 
 const SecuritySettingsScreen = () => {
   const navigation = useNavigation();
-  
+
   // Password states
   const [currentPassword, setCurrentPassword] = useState('••••••••••••••');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  
+
   // Password visibility states
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  
+
   // Validation states
   const [passwordsMatch, setPasswordsMatch] = useState(true);
   const [passwordLengthValid, setPasswordLengthValid] = useState(true);
-  
+
   // Notification state
   const [showNotification, setShowNotification] = useState(false);
   const [notificationType, setNotificationType] = useState('success'); // 'success' or 'error'
   const [notificationMessage, setNotificationMessage] = useState('');
-  
+
   // Animation values
   const notificationAnim = useRef(new Animated.Value(0)).current;
   const checkmarkScale = useRef(new Animated.Value(0)).current;
-  
+
   // Decorative circles data
   const decorativeCircles = [
     { size: 100, top: 120, right: -30, color: "rgba(138, 63, 252, 0.1)" },
@@ -58,7 +60,7 @@ const SecuritySettingsScreen = () => {
     { size: 40, bottom: 200, right: 50, color: "rgba(138, 63, 252, 0.08)" },
     { size: 120, bottom: -40, left: -40, color: "rgba(138, 63, 252, 0.06)" },
   ];
-  
+
   // Validate passwords when they change
   useEffect(() => {
     if (newPassword || confirmPassword) {
@@ -69,7 +71,7 @@ const SecuritySettingsScreen = () => {
       setPasswordLengthValid(true);
     }
   }, [newPassword, confirmPassword]);
-  
+
   // Handle notification animation
   useEffect(() => {
     if (showNotification) {
@@ -80,7 +82,7 @@ const SecuritySettingsScreen = () => {
         useNativeDriver: true,
         easing: Easing.out(Easing.back(1.5))
       }).start();
-      
+
       // Animate checkmark or X
       Animated.sequence([
         Animated.delay(300),
@@ -91,16 +93,16 @@ const SecuritySettingsScreen = () => {
           useNativeDriver: true
         })
       ]).start();
-      
+
       // Auto hide notification after 3 seconds
       const timer = setTimeout(() => {
         hideNotification();
       }, 3000);
-      
+
       return () => clearTimeout(timer);
     }
   }, [showNotification]);
-  
+
   // Function to show notification
   const showSuccessNotification = (message) => {
     setNotificationType('success');
@@ -108,14 +110,14 @@ const SecuritySettingsScreen = () => {
     setShowNotification(true);
     checkmarkScale.setValue(0);
   };
-  
+
   const showErrorNotification = (message) => {
     setNotificationType('error');
     setNotificationMessage(message);
     setShowNotification(true);
     checkmarkScale.setValue(0);
   };
-  
+
   // Function to hide notification
   const hideNotification = () => {
     Animated.timing(notificationAnim, {
@@ -127,45 +129,79 @@ const SecuritySettingsScreen = () => {
       setShowNotification(false);
     });
   };
-  
+
   // Handle password change
-  const handleChangePassword = () => {
+  const handleChangePassword = async () => {
     // Validate passwords
     if (!newPassword || !confirmPassword) {
       showErrorNotification('Please fill in all password fields');
       return;
     }
-    
+
     if (newPassword.length < 8) {
       showErrorNotification('Password must be at least 8 characters');
       return;
     }
-    
+
     if (newPassword !== confirmPassword) {
       showErrorNotification('Passwords do not match');
       return;
     }
-    
-    // In a real app, you would call an API to update the password
-    // For this demo, we'll just simulate a successful update
-    
-    // Show success notification
-    showSuccessNotification('Password changed successfully');
-    
-    // Reset password fields
-    setNewPassword('');
-    setConfirmPassword('');
+
+    try {
+      // Get the password reset token (you'll need to store this when the user requests a password change)
+      const resetToken = await AsyncStorage.getItem('passwordResetToken');
+
+      if (!resetToken) {
+        throw new Error('Password reset session expired');
+      }
+
+      // Call the API to reset password
+      const success = await resetPassword(resetToken, newPassword);
+
+      if (success) {
+        showSuccessNotification('Password changed successfully');
+
+        // Clear sensitive data
+        setNewPassword('');
+        setConfirmPassword('');
+        await AsyncStorage.removeItem('passwordResetToken');
+
+        // Optional: Force re-login after password change
+        navigation.navigate('Login');
+      }
+
+    } catch (error) {
+      console.error('Password change error:', error);
+
+      let errorMessage = 'Failed to change password';
+
+      if (error.message.includes('Invalid or expired')) {
+        errorMessage = 'This password reset link has expired. Please request a new one.';
+      } else if (error.message.includes('Network error')) {
+        errorMessage = 'Unable to connect. Please check your internet connection.';
+      } else if (error.message.includes('session expired')) {
+        errorMessage = 'Your password reset session has expired. Please start the process again.';
+      }
+
+      showErrorNotification(errorMessage);
+
+      // If token is invalid, clear it
+      if (error.message.includes('Invalid or expired') || error.message.includes('session expired')) {
+        await AsyncStorage.removeItem('passwordResetToken');
+      }
+    }
   };
-  
+
   // Render notification
   const renderNotification = () => {
     const translateY = notificationAnim.interpolate({
       inputRange: [0, 1],
       outputRange: [-100, 0]
     });
-    
+
     return (
-      <Animated.View 
+      <Animated.View
         style={[
           styles.notification,
           notificationType === 'success' ? styles.successNotification : styles.errorNotification,
@@ -185,7 +221,7 @@ const SecuritySettingsScreen = () => {
       </Animated.View>
     );
   };
-  
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Decorative circles */}
@@ -207,14 +243,14 @@ const SecuritySettingsScreen = () => {
           ]}
         />
       ))}
-      
+
       {/* Notification */}
       {showNotification && renderNotification()}
-      
+
       <ScrollView style={styles.scrollView}>
         <View style={styles.header}>
-          <TouchableOpacity 
-            style={styles.backButton} 
+          <TouchableOpacity
+            style={styles.backButton}
             onPress={() => navigation.goBack()}
           >
             <View style={styles.backButtonCircle}>
@@ -223,7 +259,7 @@ const SecuritySettingsScreen = () => {
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Security Settings</Text>
         </View>
-        
+
         <View style={styles.content}>
           {/* Current Password */}
           <View style={styles.inputContainer}>
@@ -249,7 +285,7 @@ const SecuritySettingsScreen = () => {
           </View>
 
           <Text style={styles.subHeaderTitle}>Change Account Password</Text>
-          
+
           {/* New Password */}
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>New Password</Text>
@@ -277,7 +313,7 @@ const SecuritySettingsScreen = () => {
               <Text style={styles.errorText}>Password must be at least 8 characters</Text>
             )}
           </View>
-          
+
           {/* Confirm New Password */}
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>Confirm New Password</Text>
@@ -305,7 +341,7 @@ const SecuritySettingsScreen = () => {
               <Text style={styles.errorText}>Passwords do not match</Text>
             )}
           </View>
-          
+
           {/* Change Password Button */}
           <TouchableOpacity
             style={[
