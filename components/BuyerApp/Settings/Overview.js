@@ -34,6 +34,7 @@ import {
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useNavigation } from '@react-navigation/native';
+import { updateUserProfile, deleteUser, userLogout } from '../../../services/api/userManagement/getUsers/users'
 
 const { width, height } = Dimensions.get('window');
 
@@ -208,9 +209,79 @@ const ProfileSettingsScreen = () => {
     });
   };
 
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      try {
+        const user = await getUserProfile();
+        setUserData({
+          fullName: user.fullName || user.name || '', // Use appropriate field from API
+          username: user.username || '',
+          email: user.email || '',
+          password: '' // Never store password in state
+        });
+        if (user.profileImage) setProfileImage(user.profileImage);
+      } catch (error) {
+        Alert.alert('Error', error.message);
+      }
+    };
+
+    fetchUserProfile();
+  }, []);
+
   // Function to save user data
-  const saveUserData = () => {
-    hideProfileForm();
+  const saveUserData = async () => {
+    // Filter out unchanged or empty fields
+    const updates = {
+      ...(userData.fullName !== 'Mike Greenforest' && { fullName: userData.fullName }),
+      ...(userData.username !== 'mikeg' && { username: userData.username }),
+      ...(userData.email !== 'mike.greenforest@example.com' && { email: userData.email }),
+      // Don't send password unless it's being changed (and you should hash it first)
+    };
+
+    // Remove empty fields
+    Object.keys(updates).forEach(key => {
+      if (updates[key] === undefined || updates[key] === '') {
+        delete updates[key];
+      }
+    });
+
+    if (Object.keys(updates).length === 0) {
+      hideProfileForm();
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      setProfileError('');
+
+      const updatedUser = await updateUserProfile(updates);
+
+      // Update local state with the returned user data
+      setUserData(prev => ({
+        ...prev,
+        ...updatedUser
+      }));
+
+      hideProfileForm();
+      Alert.alert('Success', 'Profile updated successfully!');
+
+    } catch (error) {
+      console.error('Profile update error:', error);
+
+      let errorMessage = error.message;
+
+      if (error.message.includes('Role modification not permitted')) {
+        errorMessage = 'You cannot change your role';
+      } else if (error.message.includes('Invalid update data')) {
+        errorMessage = 'Please check your profile information';
+      } else if (error.message === 'Network connection failed') {
+        errorMessage = 'Unable to connect. Please check your internet';
+      }
+
+      setProfileError(errorMessage);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // Navigation functions with debug alerts
@@ -247,15 +318,96 @@ const ProfileSettingsScreen = () => {
   };
 
   // Function to handle logout
-  const handleLogout = () => {
-    setLogoutModalVisible(false);
-    navigation.navigate('UserType');
+  const handleLogout = async () => {
+    try {
+      setLogoutModalVisible(false);
+      setLoading(true); // Show loading indicator if you have one
+
+      // 1. Get refresh token from storage
+      const refreshToken = await AsyncStorage.getItem('refreshToken');
+
+      // 2. Attempt API logout if token exists
+      if (refreshToken) {
+        await userLogout(refreshToken);
+      }
+
+      // 3. Clear all local authentication data
+      await AsyncStorage.multiRemove([
+        'accessToken',
+        'refreshToken',
+        'userData'
+      ]);
+
+      // 4. Navigate to UserType screen
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'UserType' }],
+      });
+
+    } catch (error) {
+      console.error('Logout error:', error);
+
+      // Even if logout failed, force local cleanup
+      await AsyncStorage.multiRemove([
+        'accessToken',
+        'refreshToken',
+        'userData'
+      ]);
+
+      Alert.alert(
+        'Logout Completed',
+        'You have been logged out. ' +
+        (error.message || 'Your session may still be active on other devices.')
+      );
+
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'UserType' }],
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Function to handle delete account
-  const handleDeleteAccount = () => {
-    setDeleteModalVisible(false);
-    navigation.navigate('UserType');
+  const handleDeleteAccount = async () => {
+    try {
+      setDeleteModalVisible(false);
+      setLoading(true); // Show loading indicator
+
+      // Call the delete API with the current user's ID
+      const success = await deleteUser(currentUserId); // You'll need to get the current user's ID
+
+      if (success) {
+        // Clear user data from storage
+        await AsyncStorage.multiRemove(['accessToken', 'refreshToken', 'userData']);
+
+        Alert.alert(
+          'Account Deleted',
+          'Your account has been permanently deleted.',
+          [{ text: 'OK', onPress: () => navigation.navigate('UserType') }]
+        );
+      }
+
+    } catch (error) {
+      console.error('Account deletion failed:', error);
+
+      let errorMessage = 'Failed to delete account. Please try again.';
+
+      if (error.message === 'Admin authorization required') {
+        errorMessage = 'You need admin privileges to perform this action';
+      } else if (error.message === 'Your account lacks permissions') {
+        errorMessage = 'You do not have permission to delete this account';
+      } else if (error.message === 'User not found') {
+        errorMessage = 'Account not found or already deleted';
+      } else if (error.message === 'Network connection failed') {
+        errorMessage = 'Unable to connect. Please check your internet connection';
+      }
+
+      Alert.alert('Deletion Error', errorMessage);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

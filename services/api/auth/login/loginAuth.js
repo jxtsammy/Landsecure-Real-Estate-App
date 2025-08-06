@@ -30,40 +30,66 @@ export const loginBuyer = async (email, password) => {
 };
 
 
-// src/api/auth.js
-export const loginAdmin = async (email, password) => {
-  try {
-    const response = await API.post('/auth/login', {
-      email,
-      password,
-    }, {
-      headers: {
-        'Content-Type': 'application/json',
-        'X-User-Role': 'admin' // Role specification header
-      }
-    });
-    return response.data; // { token, adminData }
-  } catch (error) {
-    let errorMessage = 'Admin login failed. Check credentials.';
+// Seller Login Config
+export const loginSeller = async (email, password) => {
+  // Basic client-side validation
+  if (!email || !password) {
+    throw new Error('Email and password are required');
+  }
 
-    if (error.response) {
-      // Enhanced status code handling
-      if (error.response.status === 401) {
-        errorMessage = 'Invalid admin credentials';
+  try {
+    const response = await API.post(
+      '/auth/login',
+      {
+        email: email.trim().toLowerCase(),
+        password
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        validateStatus: (status) => status < 500 // Don't throw for 4xx
       }
-      else if (error.response.status === 403) {
-        errorMessage = 'Not authorized as admin';
-      }
-      else if (error.response.status === 404) {
-        errorMessage = 'Admin account not found';
-      }
-      else if (error.response.data?.message) {
-        errorMessage = error.response.data.message;
-      }
-    } else if (error.message === 'Network Error') {
-      errorMessage = 'Network error. Check your connection.';
+    );
+
+    // Handle successful login (2xx status)
+    if (response.status >= 200 && response.status < 300) {
+      return {
+        accessToken: response.data.access_token,
+        refreshToken: response.data.refresh_token,
+        user: response.data.user,
+        expiresIn: response.data.expires_in
+      };
     }
 
-    throw new Error(errorMessage);
+    // Handle specific error responses
+    if (response.status === 401) {
+      throw new Error('Invalid email or password');
+    }
+
+    if (response.status === 403) {
+      throw new Error('Account not verified. Please check your email');
+    }
+
+    throw new Error(response.data?.message || 'Login failed');
+
+  } catch (error) {
+    // Network errors
+    if (error.message === 'Network Error') {
+      throw new Error('Network connection failed. Please check your internet.');
+    }
+
+    // Re-throw processed errors
+    if ([
+      'Email and password are required',
+      'Invalid email or password',
+      'Account not verified'
+    ].includes(error.message)) {
+      throw error;
+    }
+
+    // Default error
+    throw new Error('Login service unavailable. Please try later.');
   }
 };

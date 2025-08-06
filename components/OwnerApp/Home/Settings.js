@@ -35,10 +35,9 @@ import {
   AlertCircle,
   Check,
 } from 'lucide-react-native';
-// Import useNavigation hook
 import { useNavigation } from '@react-navigation/native';
-// Import image picker
 import * as ImagePicker from 'expo-image-picker';
+import { deleteUser, userLogout, getUserProfile } from '../../../services/api/userManagement/getUsers'
 
 const { width, height } = Dimensions.get('window');
 
@@ -64,6 +63,42 @@ const SettingsScreen = () => {
     joinedDate: '5 weeks ago',
     avatar: 'https://randomuser.me/api/portraits/men/32.jpg',
   });
+
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      try {
+        const profile = await getUserProfile();
+
+        setUserData({
+          name: profile.name || profile.fullName || '', // Handle different API field names
+          email: profile.email || '',
+          phone: profile.phone || profile.phoneNumber || '',
+          nationalId: profile.nationalId || profile.idNumber || '',
+          joinedDate: profile.createdAt ? formatJoinedDate(profile.createdAt) : 'Recently',
+          avatar: profile.avatar || profile.profileImage || 'https://randomuser.me/api/portraits/men/32.jpg'
+        });
+
+      } catch (error) {
+        console.error('Failed to load profile:', error);
+        Alert.alert('Error', error.message);
+
+        // Optional: Clear user data if unauthorized
+        if (error.message.includes('expired') || error.message.includes('401')) {
+          await AsyncStorage.removeItem('accessToken');
+          navigation.navigate('Login');
+        }
+      }
+    };
+
+    fetchUserProfile();
+  }, []);
+
+  const formatJoinedDate = (dateString) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffWeeks = Math.floor((now - date) / (1000 * 60 * 60 * 24 * 7));
+    return `${diffWeeks} ${diffWeeks === 1 ? 'week' : 'weeks'} ago`;
+  };
 
   // Form state for editing
   const [formData, setFormData] = useState({
@@ -121,17 +156,87 @@ const SettingsScreen = () => {
     }
   }, [logoutModalVisible, logoutSlideAnim]);
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
+    setIsDeleting(true); // Start loading
     setDeleteModalVisible(false);
-    // Here you would handle the actual account deletion
-    navigation.navigate('UserType');
+
+    try {
+      const userId = await AsyncStorage.getItem('@current_user_id');
+      if (!userId) throw new Error('User not identified');
+
+      await deleteUser(userId); // This will throw on failure
+
+      // Clear all user data
+      await AsyncStorage.multiRemove([
+        'accessToken',
+        'refreshToken',
+        'userData',
+        '@current_user_id'
+      ]);
+
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'UserType' }],
+      });
+
+    } catch (error) {
+      console.error('Delete failed:', error);
+      Alert.alert(
+        'Deletion Error',
+        error.message || 'Could not delete account. Please try again.'
+      );
+    }
   };
 
-  const handleLogout = () => {
-    setLogoutModalVisible(false);
-    // Here you would handle the actual logout logic
-    console.log('Logging out...');
-    navigation.navigate('UserType');
+  const handleLogout = async () => {
+    try {
+      setLogoutModalVisible(false);
+
+      // 1. Get refresh token from storage
+      const refreshToken = await AsyncStorage.getItem('refreshToken');
+
+      // 2. Attempt API logout if token exists
+      if (refreshToken) {
+        await userLogout(refreshToken);
+      }
+
+      // 3. Clear all local authentication data
+      await AsyncStorage.multiRemove([
+        'accessToken',
+        'refreshToken',
+        'userData'
+      ]);
+
+      // 4. Navigate to UserType screen with reset
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'UserType' }],
+      });
+
+    } catch (error) {
+      console.error('Logout error:', error);
+
+      // Even if API logout fails, force local cleanup
+      await AsyncStorage.multiRemove([
+        'accessToken',
+        'refreshToken',
+        'userData'
+      ]);
+
+      // Navigate to UserType screen
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'UserType' }],
+      });
+
+      // Show error if it wasn't about expired tokens
+      if (!error.message.includes('expired')) {
+        Alert.alert(
+          'Logout Notice',
+          'You were logged out, but the session may still be active elsewhere.'
+        );
+      }
+    }
   };
 
   // Function to pick image from gallery
@@ -170,29 +275,55 @@ const SettingsScreen = () => {
   };
 
   // Function to handle form submission
-  const handleUpdateProfile = () => {
-    // Validate form data
-    if (!formData.name || !formData.email || !formData.phone) {
-      Alert.alert('Missing Information', 'Please fill in all required fields.');
-      return;
-    }
+  const handleUpdateProfile = async () => {
+  // Validate form data
+  if (!formData.name || !formData.email || !formData.phone) {
+    Alert.alert('Missing Information', 'Please fill in all required fields.');
+    return;
+  }
 
-    // Update user data
-    setUserData({
-      ...userData,
-      name: formData.name,
-      email: formData.email,
-      phone: formData.phone,
-      nationalId: formData.nationalId,
-      avatar: formData.avatar,
-    });
+  try {
+    // Prepare updates (only changed fields)
+    const updates = {
+      ...(formData.name !== userData.name && { name: formData.name }),
+      ...(formData.email !== userData.email && { email: formData.email }),
+      ...(formData.phone !== userData.phone && { phone: formData.phone }),
+      ...(formData.nationalId !== userData.nationalId && { nationalId: formData.nationalId }),
+      // Avatar would typically be handled via separate endpoint
+    };
+
+    // Call API
+    const updatedUser = await updateUserProfile(updates);
+
+    // Update local state with API response
+    setUserData(prev => ({
+      ...prev,
+      ...updatedUser
+    }));
 
     // Close modal
     setProfileModalVisible(false);
 
-    // Show success message
+    // Show success
     Alert.alert('Success', 'Profile updated successfully!');
-  };
+
+  } catch (error) {
+    console.error('Update error:', error);
+
+    let errorMessage = 'Failed to update profile. Please try again.';
+
+    if (error.message.includes('Invalid update data')) {
+      errorMessage = 'Please check your profile information';
+    } else if (error.message === 'Network connection failed') {
+      errorMessage = 'Unable to connect. Please check your internet';
+    } else if (error.message.includes('Role modification')) {
+      errorMessage = 'You cannot change your account type';
+    }
+
+    Alert.alert('Update Failed', errorMessage);
+  }
+};
+
 
   // Settings menu items
   const menuItems = [

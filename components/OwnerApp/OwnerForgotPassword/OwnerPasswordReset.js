@@ -11,6 +11,7 @@ import {
   BackHandler,
 } from 'react-native';
 import { ArrowLeft, Eye, EyeOff } from 'lucide-react-native';
+import { resetPassword } from '../../../services/api/auth/forgotPassword/forgotPassword'
 
 const { width, height } = Dimensions.get('window');
 
@@ -18,33 +19,33 @@ const ResetPasswordScreen = ({ navigation }) => {
   // Password state
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  
+
   // Password visibility state
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  
+
   // Validation state
   const [passwordError, setPasswordError] = useState('');
   const [confirmPasswordError, setConfirmPasswordError] = useState('');
-  
+
   // Refs for focus management
   const confirmPasswordRef = useRef(null);
-  
+
   // Prevent going back after navigating away
   useEffect(() => {
     const unsubscribe = navigation.addListener('beforeRemove', (e) => {
       // Save the navigation action
       const action = e.data.action;
-      
+
       // Set a flag in navigation state to prevent coming back
       if (action.type === 'NAVIGATE') {
         navigation.setParams({ hasVisited: true });
       }
     });
-    
+
     return unsubscribe;
   }, [navigation]);
-  
+
   // Block hardware back button
   useEffect(() => {
     const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -54,10 +55,10 @@ const ResetPasswordScreen = ({ navigation }) => {
       }
       return false; // Allow default back behavior
     });
-    
+
     return () => backHandler.remove();
   }, []);
-  
+
   // Validate password
   const validatePassword = (pass) => {
     if (pass.length < 8) {
@@ -65,7 +66,7 @@ const ResetPasswordScreen = ({ navigation }) => {
     }
     return "";
   };
-  
+
   // Validate confirm password
   const validateConfirmPassword = (pass, confirmPass) => {
     if (pass !== confirmPass) {
@@ -73,46 +74,70 @@ const ResetPasswordScreen = ({ navigation }) => {
     }
     return "";
   };
-  
+
   // Handle password change
   const handlePasswordChange = (text) => {
     setPassword(text);
     setPasswordError(validatePassword(text));
-    
+
     if (confirmPassword) {
       setConfirmPasswordError(validateConfirmPassword(text, confirmPassword));
     }
   };
-  
+
   // Handle confirm password change
   const handleConfirmPasswordChange = (text) => {
     setConfirmPassword(text);
     setConfirmPasswordError(validateConfirmPassword(password, text));
   };
-  
+
   // Handle change password
-  const handleChangePassword = () => {
+  const handleChangePassword = async () => {
     const passError = validatePassword(password);
     const confirmPassError = validateConfirmPassword(password, confirmPassword);
-    
+
     setPasswordError(passError);
     setConfirmPasswordError(confirmPassError);
-    
-    if (!passError && !confirmPassError) {
-      // Navigate and prevent coming back
-      navigation.navigate("OwnerLogin", { resetComplete: true });
+
+    if (passError || confirmPassError) {
+      return; // Don't proceed if there are validation errors
+    }
+
+    try {
+      setLoading(true);
+
+      // Call the resetPassword API with token and new password
+      const success = await resetPassword(token, password);
+
+      if (success) {
+        Alert.alert(
+          'Success',
+          'Your password has been reset successfully!'
+        );
+
+        // Navigate to login with reset flag
+        navigation.replace("OwnerLogin", { resetComplete: true });
+      }
+
+    } catch (error) {
+      Alert.alert(
+        'Error',
+        error.message || 'Failed to reset password. Please try again.'
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
   // Check if button should be disabled
-  const isButtonDisabled = !password || !confirmPassword || 
-                          password.length < 8 || 
+  const isButtonDisabled = !password || !confirmPassword ||
+                          password.length < 8 ||
                           password !== confirmPassword;
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-      
+
       {/* Decorative Circles */}
       <View style={[styles.circle, styles.circle1]} />
       <View style={[styles.circle, styles.circle2]} />
@@ -124,11 +149,11 @@ const ResetPasswordScreen = ({ navigation }) => {
       <View style={[styles.circle, styles.circle8]} />
       <View style={[styles.circle, styles.circle9]} />
       <View style={[styles.circle, styles.circle10]} />
-      
+
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton} 
+        <TouchableOpacity
+          style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
           <View style={styles.backButtonCircle}>
@@ -137,17 +162,17 @@ const ResetPasswordScreen = ({ navigation }) => {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Reset Password</Text>
       </View>
-      
+
       <View style={styles.contentWrapper}>
         <View style={styles.content}>
           {/* Title */}
           <Text style={styles.title}>Reset password</Text>
-          
+
           {/* Subtitle */}
           <Text style={styles.subtitle}>
             Your new password must be different from the previously used password
           </Text>
-          
+
           {/* Password Input */}
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>Password</Text>
@@ -161,12 +186,12 @@ const ResetPasswordScreen = ({ navigation }) => {
                 returnKeyType="next"
                 onSubmitEditing={() => confirmPasswordRef.current.focus()}
               />
-              <TouchableOpacity 
-                style={styles.eyeIcon} 
+              <TouchableOpacity
+                style={styles.eyeIcon}
                 onPress={() => setShowPassword(!showPassword)}
               >
-                {showPassword ? 
-                  <EyeOff size={20} color="#666" /> : 
+                {showPassword ?
+                  <EyeOff size={20} color="#666" /> :
                   <Eye size={20} color="#666" />
                 }
               </TouchableOpacity>
@@ -178,7 +203,7 @@ const ResetPasswordScreen = ({ navigation }) => {
               {passwordError || "Must be at least 8 characters"}
             </Text>
           </View>
-          
+
           {/* Confirm Password Input */}
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>Confirm Password</Text>
@@ -192,12 +217,12 @@ const ResetPasswordScreen = ({ navigation }) => {
                 placeholder=""
                 returnKeyType="done"
               />
-              <TouchableOpacity 
-                style={styles.eyeIcon} 
+              <TouchableOpacity
+                style={styles.eyeIcon}
                 onPress={() => setShowConfirmPassword(!showConfirmPassword)}
               >
-                {showConfirmPassword ? 
-                  <EyeOff size={20} color="#666" /> : 
+                {showConfirmPassword ?
+                  <EyeOff size={20} color="#666" /> :
                   <Eye size={20} color="#666" />
                 }
               </TouchableOpacity>
@@ -210,9 +235,9 @@ const ResetPasswordScreen = ({ navigation }) => {
             </Text>
           </View>
         </View>
-        
+
         {/* Change Password Button */}
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[
             styles.changeButton,
             isButtonDisabled ? styles.disabledButton : {}

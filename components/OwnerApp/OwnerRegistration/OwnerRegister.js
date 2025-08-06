@@ -32,6 +32,10 @@ import {
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 const { width, height } = Dimensions.get('window');
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { verifyEmail, resendVerificationEmail } from '../../../services/api/auth/verifications/userVerification';
+import { registerSeller } from '../../../services/api/auth/register/adminRegister';
+
 
 // Decorative circles data
 const decorativeCircles = [
@@ -160,25 +164,114 @@ const AuthScreens = ({ navigation }) => {
   };
 
   // Function to handle sign up button press
-  const handleSignUp = () => {
-    console.log('Sign Up pressed with:', {
-      email,
-      nationalID,
-      gender,
-      password,
-      confirmPassword,
-      agreeToTerms,
-    });
-    // In a real app, you would validate inputs and make an API call
-    setCurrentScreen('verifyCode');
+  const handleSignUp = async () => {
+    // Basic validation
+    if (!email || !nationalID || !gender || !password || !confirmPassword) {
+      Alert.alert('Error', 'Please fill in all required fields');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match');
+      return;
+    }
+
+    if (!agreeToTerms) {
+      Alert.alert('Error', 'You must agree to the terms and conditions');
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      // Prepare the registration data
+      const userData = {
+        email: email.trim().toLowerCase(),
+        national_id: nationalID,
+        gender,
+        password,
+        // Add any additional required fields here
+      };
+
+      // Call the registration API
+      const response = await registerSeller(userData);
+
+      console.log('Registration successful:', {
+        email,
+        nationalID,
+        gender,
+        // Don't log passwords in production
+      });
+
+      // On successful registration, move to verification screen
+      setCurrentScreen('verifyCode');
+
+      // Optionally store email for verification reference
+      await AsyncStorage.setItem('pendingVerificationEmail', email);
+
+    } catch (error) {
+      console.error('Registration error:', error);
+
+      // Handle specific error cases
+      let errorMessage = 'Registration failed. Please try again.';
+      if (error.message === 'Email already registered') {
+        errorMessage = 'This email is already registered. Please login instead.';
+      } else if (error.message === 'Network connection failed') {
+        errorMessage = 'Unable to connect. Please check your internet connection.';
+      } else if (error.message.includes('Invalid registration data')) {
+        errorMessage = 'Please check your registration details and try again.';
+      }
+
+      Alert.alert('Registration Error', errorMessage);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Function to handle verify button press
-  const handleVerify = () => {
-    const code = verificationCode.join('');
-    console.log('Verify pressed with code:', code);
-    // In a real app, you would validate the code and proceed to the next step
-    setCurrentScreen('completeProfileAndID');
+  const handleVerify = async () => {
+    const code = verificationCode.join(''); // Combine the 4 digits
+
+    // Validate code length
+    if (code.length !== 4) {
+      Alert.alert('Error', 'Please enter the complete 4-digit verification code');
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      // Call verification API with the 4-digit code
+      const { accessToken, refreshToken } = await verifyEmail(code);
+
+      console.log('Email verification successful');
+
+      // Store tokens securely
+      await AsyncStorage.multiSet([
+        ['accessToken', accessToken],
+        ['refreshToken', refreshToken]
+      ]);
+
+      // Proceed to complete profile screen
+      setCurrentScreen('completeProfileAndID');
+
+    } catch (error) {
+      console.error('Verification failed:', error);
+
+      let errorMessage = 'Verification failed. Please try again.';
+
+      if (error.message.includes('Invalid or expired token')) {
+        errorMessage = 'Invalid or expired verification code';
+      } else if (error.message.includes('Verification token not found')) {
+        errorMessage = 'This verification code is not recognized';
+      } else if (error.message === 'Network connection failed') {
+        errorMessage = 'Unable to connect. Please check your internet';
+      }
+
+      Alert.alert('Verification Error', errorMessage);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Function to handle complete registration button press
@@ -236,6 +329,45 @@ const AuthScreens = ({ navigation }) => {
     openSystemGallery((imageUri) => {
       setProfileImage(imageUri);
     });
+  };
+
+  const handleTokenResend = async () => {
+    try {
+      setLoading(true);
+
+      // Get the email from storage or state
+      const email = await AsyncStorage.getItem('pendingVerificationEmail') || '';
+
+      // Call the resend API
+      const success = await resendVerificationEmail(email);
+
+      if (success) {
+        Alert.alert(
+          'Email Sent',
+          `Verification email resent to ${email}. Please check your inbox.`
+        );
+      }
+
+    } catch (error) {
+      console.error('Resend error:', error);
+
+      let errorMessage = error.message;
+
+      // Handle specific error cases
+      if (error.message.includes('Please enter a valid email')) {
+        errorMessage = 'Please enter a valid email address';
+      } else if (error.message.includes('Email not found')) {
+        errorMessage = 'This email is not registered in our system';
+      } else if (error.message.includes('Please wait')) {
+        errorMessage = 'Please wait a few minutes before requesting another email';
+      } else if (error.message.includes('Network connection failed')) {
+        errorMessage = 'Unable to connect. Please check your internet connection';
+      }
+
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Render the step indicator
@@ -454,7 +586,7 @@ const AuthScreens = ({ navigation }) => {
 
         <View style={styles.resendContainer}>
           <Text style={styles.resendText}>Didn't receive OTP?</Text>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={handleTokenResend}>
             <Text style={styles.resendLink}>Resend code</Text>
           </TouchableOpacity>
         </View>

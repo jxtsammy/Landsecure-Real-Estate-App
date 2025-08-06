@@ -37,13 +37,14 @@ import ChatMessage from './components/ChatApp/ChatMessage';
 import CallScreen from './components/ChatApp/CallScreen';
 import AddPropertyImages from './components/OwnerApp/AddPoperties/AddPropetyImages';
 import AdditionalPropertyInfo from './components/OwnerApp/AddPoperties/AdditionalPropertyInfo'
+import EnterOwnerResetEmail from './components/OwnerApp/OwnerForgotPassword/EnterOwnerEmail'
 const Stack = createStackNavigator();
 
 export default function App() {
   return (
     <NavigationContainer>
       <Stack.Navigator
-        initialRouteName="Spalsh"
+        initialRouteName="Splash"
         screenOptions={{ headerShown: false }}>
         <Stack.Screen name="Home" component={Home} />
         <Stack.Screen name="Splash" component={Splash} />
@@ -91,6 +92,7 @@ export default function App() {
         <Stack.Screen name="CallScreen" component={CallScreen} />
         <Stack.Screen name="AddPropertyImages" component={AddPropertyImages} />
          <Stack.Screen name="AdditionalPropertyInfo" component={AdditionalPropertyInfo} />
+         <Stack.Screen name="EnterOwnerResetEmail" component={EnterOwnerResetEmail} />
       </Stack.Navigator>
     </NavigationContainer>
   );

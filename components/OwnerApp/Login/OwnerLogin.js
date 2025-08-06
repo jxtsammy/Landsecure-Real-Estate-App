@@ -1,28 +1,62 @@
 import React, { useState } from 'react';
-import { 
-  StyleSheet, 
-  View, 
-  Text, 
-  ImageBackground, 
-  TouchableOpacity, 
-  StatusBar, 
+import {
+  StyleSheet,
+  View,
+  Text,
+  ImageBackground,
+  TouchableOpacity,
+  StatusBar,
   Dimensions,
-  TextInput 
+  TextInput
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowLeft } from 'lucide-react-native'; // Import ArrowLeft icon
+import { loginSeller } from '../../../services/api/auth/login/loginAuth'
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width, height } = Dimensions.get('window');
 
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleLoginPress = async () => {
+    // Basic validation
+    if (!email.trim() || !password) {
+      setError('Please enter both email and password');
+      return;
+    }
+
+    setError('');
+    setIsLoading(true);
+
+    try {
+      const { accessToken, refreshToken, user } = await loginSeller(email, password);
+
+      // Store tokens and user data
+      await AsyncStorage.multiSet([
+        ['accessToken', accessToken],
+        ['refreshToken', refreshToken],
+        ['user', JSON.stringify(user)]
+      ]);
+
+      // Navigate to owner dashboard
+      navigation.navigate('OwnerNav');
+    } catch (err) {
+      setError(err.message);
+      Alert.alert('Login Error', err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
-      <ImageBackground 
-        source={{ uri: 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1073&q=80' }} 
+      <ImageBackground
+        source={{ uri: 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1073&q=80' }}
         style={styles.backgroundImage}
         resizeMode="cover"
       >
@@ -31,15 +65,15 @@ const LoginScreen = ({ navigation }) => {
           style={styles.gradient}
         >
           {/* Back Button with circular background */}
-          <TouchableOpacity 
-            style={styles.backButton} 
+          <TouchableOpacity
+            style={styles.backButton}
             onPress={() => navigation.navigate('UserType')}
           >
             <View style={styles.backButtonCircle}>
               <ArrowLeft size={20} color="#000" />
             </View>
           </TouchableOpacity>
-          
+
           <View style={styles.contentContainer}>
             <View style={styles.textContainer}>
               <Text style={styles.title}>Welcome Owner</Text>
@@ -47,7 +81,7 @@ const LoginScreen = ({ navigation }) => {
                 Login to the app to continue from where you left off and to continue with you business tasks
               </Text>
             </View>
-            
+
             <View style={styles.formContainer}>
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Email</Text>
@@ -61,7 +95,7 @@ const LoginScreen = ({ navigation }) => {
                   autoCapitalize="none"
                 />
               </View>
-              
+
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Password</Text>
                 <TextInput
@@ -73,15 +107,15 @@ const LoginScreen = ({ navigation }) => {
                   secureTextEntry
                 />
               </View>
-              
-              <TouchableOpacity style={styles.forgotPasswordContainer} onPress={() => navigation.navigate('ForgotVerification')}>
+
+              <TouchableOpacity style={styles.forgotPasswordContainer} onPress={() => navigation.navigate('EnterOwnerResetEmail')}>
                 <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
               </TouchableOpacity>
-              
-              <TouchableOpacity style={styles.loginButton} onPress={() => navigation.navigate('OwnerNav')}>
+
+              <TouchableOpacity style={styles.loginButton} onPress={handleLoginPress} disabled={isLoading}>
                 <Text style={styles.loginButtonText}>Login</Text>
               </TouchableOpacity>
-              
+
               {/* Register link */}
               <View style={styles.registerContainer}>
                 <Text style={styles.registerText}>Don't have an Account? </Text>

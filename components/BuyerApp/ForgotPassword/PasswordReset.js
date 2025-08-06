@@ -19,6 +19,7 @@ import {
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import Icon from 'react-native-vector-icons/Feather';
 import { requestPasswordReset, resetPassword } from '../../../services/api/auth/forgotPassword/forgotPassword'
+import { resendVerificationEmail, verifyEmail } from '../../../services/api/auth/verifications/userVerification'
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
@@ -173,18 +174,84 @@ const OTPVerificationScreen = ({ navigation }) => {
     }
   };
 
-  const handleResend = () => {
-    if (!isResendDisabled) {
-      // Reset OTP fields
-      setOtp(['', '', '', '']);
-      // Reset countdown
-      setCountdown(60);
+const handleResend = async () => {
+  if (!isResendDisabled && email) { // Ensure email exists
+    try {
       setIsResendDisabled(true);
-      // Focus first input
-      inputRefs.current[0].focus();
-      // Here you would typically call your API to resend the OTP
+      setCountdown(60); // Start countdown
+      setOtp(['', '', '', '']); // Reset OTP fields
+
+      // Call the API
+      const success = await resendVerificationEmail(email);
+
+      if (success) {
+        Alert.alert(
+          'Email Sent',
+          'New verification code has been sent to your email',
+          [{ text: 'OK' }]
+        );
+        inputRefs.current[0].focus(); // Focus first input
+      }
+
+    } catch (error) {
+      setIsResendDisabled(false); // Re-enable button on error
+      Alert.alert(
+        'Resend Failed',
+        error.message,
+        [{ text: 'OK' }]
+      );
+    } finally {
+      // Countdown continues regardless of success/error
+      const interval = setInterval(() => {
+        setCountdown(prev => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            setIsResendDisabled(false);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
     }
-  };
+  }
+};
+
+const handleTokenPress = async () => {
+  // First verify the token is valid
+  try {
+    setLoading(true);
+
+    // Call the verification API with the token
+    const { accessToken, refreshToken } = await verifyEmail(token);
+
+    // Store tokens securely if needed
+    await AsyncStorage.multiSet([
+      ['accessToken', accessToken],
+      ['refreshToken', refreshToken]
+    ]);
+
+    // Only navigate if verification succeeds
+    navigation.navigate('ResetPassword', {
+      token, // Pass the verified token to reset password screen
+      isVerified: true
+    });
+
+  } catch (error) {
+    console.error('Token verification failed:', error);
+
+    let errorMessage = 'This link is invalid or expired';
+    if (error.message.includes('Network connection failed')) {
+      errorMessage = 'Network error. Please check your internet connection.';
+    }
+
+    Alert.alert('Verification Failed', errorMessage);
+
+    // Optional: navigate back or to a different screen
+    // navigation.goBack();
+  } finally {
+    setLoading(false);
+  }
+};
 
   const dismissKeyboard = () => {
     Keyboard.dismiss();
@@ -247,7 +314,7 @@ const OTPVerificationScreen = ({ navigation }) => {
                 styles.primaryButton,
                 !isOtpComplete && styles.disabledButton
               ]}
-              onPress={() => navigation.navigate('ResetPassword')}
+              onPress={handleTokenPress}
               disabled={!isOtpComplete}
             >
               <Text style={[

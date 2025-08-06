@@ -1,7 +1,7 @@
 import API from '../../config'
 
 //Email Verification
-export const verifyAdminEmail = async (token) => {
+export const verifyEmail = async (token) => {
   // Basic token validation
   if (!token || typeof token !== 'string') {
     throw new Error('Invalid verification token');
@@ -53,7 +53,7 @@ export const verifyAdminEmail = async (token) => {
 };
 
 
-// Resending Email Verification
+// Resending Email Verification tokens
 export const resendVerificationEmail = async (email) => {
   // Basic email validation
   if (!email || !/^\S+@\S+\.\S+$/.test(email)) {

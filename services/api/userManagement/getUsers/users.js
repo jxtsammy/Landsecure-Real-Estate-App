@@ -227,3 +227,59 @@ const getAdminAuthToken = async () => {
   if (!token) throw new Error('Admin authentication required');
   return token;
 };
+
+// User Logout
+export const userLogout = async (refreshToken) => {
+  // Basic validation
+  if (!refreshToken || typeof refreshToken !== 'string') {
+    throw new Error('Invalid refresh token');
+  }
+
+  try {
+    const response = await API.post(
+      '/auth/logout',
+      { refresh_token: refreshToken },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        validateStatus: (status) => status < 500 // Don't throw for 4xx
+      }
+    );
+
+    // Handle success (typically 200 or 204)
+    if (response.status === 200 || response.status === 204) {
+      return true;
+    }
+
+    // Handle specific error responses
+    if (response.status === 400) {
+      throw new Error('Invalid or expired refresh token');
+    }
+
+    if (response.status === 401) {
+      throw new Error('Session already expired');
+    }
+
+    throw new Error(response.data?.message || 'Logout failed');
+
+  } catch (error) {
+    // Network errors
+    if (error.message === 'Network Error') {
+      throw new Error('Network connection failed. Please check your internet');
+    }
+
+    // Re-throw processed errors
+    if ([
+      'Invalid refresh token',
+      'Invalid or expired refresh token',
+      'Session already expired'
+    ].includes(error.message)) {
+      throw error;
+    }
+
+    // Default error
+    throw new Error('Logout service unavailable. Please try later.');
+  }
+};
