@@ -1,5 +1,4 @@
 "use client"
-
 import { useState, useEffect, useRef } from "react"
 import {
   View,
@@ -14,188 +13,19 @@ import {
   Modal,
   Animated,
   Easing,
+  Alert,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
-import { Search, MapPin, Trees, Mountain, Landmark, Wheat, Palmtree, Ruler, X } from "lucide-react-native"
+import { Search, MapPin, Trees, Mountain, Landmark, Wheat, Palmtree, Ruler, X, Frown, Filter } from "lucide-react-native" // Added Frown and Filter icons
 import { StatusBar } from "react-native"
 import { useNavigation } from "@react-navigation/native"
+import { getPropertyDetails } from '../../../services/api/propertyManagment/getPropertyDetails';
 
 const { width } = Dimensions.get("window")
 
-// Updated land data with coordinates
-// Updated properties array with enhanced descriptions
-
-const properties = [
-  {
-    id: "1",
-    images: [
-      "https://images.unsplash.com/photo-1500382017468-9049fed747ef?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1470&q=80",
-      "https://images.unsplash.com/photo-1501594907352-04cda38ebc29?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1470&q=80",
-    ],
-    type: "Residential Plot",
-    size: "0.5",
-    sizeUnit: "acre",
-    dimensions: "100 x 200 ft",
-    location: "Edgewood, NM 87015",
-    price: "$95,000",
-    favorite: false,
-    coordinates: { lat: 35.0614, lng: -106.1911 },
-    description:
-      "Beautiful residential plot with stunning mountain views, perfect for building your dream home. This 0.5-acre property offers privacy and tranquility while still being just a short drive from amenities. The land has been surveyed and has utilities available at the lot line. Zoning allows for single-family homes with the possibility of a guest house. The gentle slope provides excellent drainage and potential for a walkout basement.",
-    features: ["Mountain views", "Utilities available", "Paved road access", "No HOA restrictions", "Buildable lot"],
-    zoning: "Residential R-1",
-    utilities: "Water, electricity, and gas available at lot line",
-    access: "Paved road access via Mountain View Drive",
-  },
-  {
-    id: "2",
-    images: [
-      "https://images.unsplash.com/photo-1628624747186-a941c476b7ef?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1475&q=80",
-    ],
-    type: "Agricultural Land",
-    size: "5",
-    sizeUnit: "acres",
-    dimensions: "450 x 480 ft",
-    location: "Santa Fe, NM 87501",
-    price: "$175,000",
-    favorite: false,
-    coordinates: { lat: 35.687, lng: -105.9378 },
-    description:
-      "Fertile agricultural land with valuable water rights, ideal for organic farming or vineyard development. This 5-acre parcel features rich, loamy soil with excellent drainage and has been previously used for hay production. The property includes irrigation rights from the Santa Fe River with an established irrigation system already in place. The land is relatively flat with a slight southern slope, providing optimal sun exposure for crops. A small storage shed is included on the property.",
-    features: [
-      "Water rights included",
-      "Irrigation system in place",
-      "Rich, fertile soil",
-      "Southern exposure",
-      "Storage shed included",
-    ],
-    zoning: "Agricultural A-1",
-    utilities: "Well water and electricity on property",
-    access: "Gravel road access with county maintenance",
-  },
-  {
-    id: "3",
-    images: [
-      "https://images.unsplash.com/photo-1472214103451-9374bd1c798e?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1471&q=80",
-      "https://images.unsplash.com/photo-1500382017468-9049fed747ef?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1470&q=80",
-    ],
-    type: "Commercial Plot",
-    size: "1.2",
-    sizeUnit: "hectares",
-    dimensions: "120 x 400 m",
-    location: "Albuquerque, NM 87102",
-    price: "$385,000",
-    favorite: false,
-    coordinates: { lat: 35.0844, lng: -106.6504 },
-    description:
-      "Prime commercial plot in a high-traffic area, ideal for retail, office, or mixed-use development. This 1.2-hectare property is strategically located near the intersection of two major highways with excellent visibility and easy access. The site is fully entitled with C-2 zoning allowing for a wide range of commercial uses. All utilities are available at the property line, and the site has been graded and is ready for development. Traffic count exceeds 25,000 vehicles per day, making this an excellent location for businesses seeking high visibility.",
-    features: [
-      "High traffic location",
-      "Corner lot with multiple access points",
-      "All utilities available",
-      "Graded and ready for development",
-      "No flood zone",
-    ],
-    zoning: "Commercial C-2",
-    utilities: "All utilities available at property line",
-    access: "Multiple access points from main road and side street",
-  },
-  {
-    id: "4",
-    images: [
-      "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1470&q=80",
-      "https://images.unsplash.com/photo-1501594907352-04cda38ebc29?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1470&q=80",
-    ],
-    type: "Beachfront Land",
-    size: "0.75",
-    sizeUnit: "acres",
-    dimensions: "150 x 220 ft",
-    location: "Rio Rancho, NM 87124",
-    price: "$525,000",
-    favorite: true,
-    coordinates: { lat: 35.2328, lng: -106.6243 },
-    description:
-      "Stunning beachfront property with panoramic water views and private beach access. This rare 0.75-acre waterfront lot offers 150 feet of pristine shoreline on the Rio Grande with breathtaking sunset views. The property is elevated, providing protection from flooding while maintaining easy access to the water. This is one of the last available waterfront lots in this exclusive area. The property has been perc tested and is suitable for a septic system. Utilities are available at the road, and the lot is ready for your dream home construction.",
-    features: [
-      "150 feet of waterfront",
-      "Private beach access",
-      "Panoramic water views",
-      "Elevated building site",
-      "Perc tested for septic",
-    ],
-    zoning: "Residential R-1",
-    utilities: "Water and electricity available at road",
-    access: "Private road access with recorded easement",
-  },
-  {
-    id: "5",
-    images: [
-      "https://images.unsplash.com/photo-1470770841072-f978cf4d019e?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1470&q=80",
-      "https://images.unsplash.com/photo-1470770841072-f978cf4d019e?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1470&q=80",
-    ],
-    type: "Mountain View Plot",
-    size: "10",
-    sizeUnit: "acres",
-    dimensions: "650 x 670 ft",
-    location: "Santa Fe, NM 87506",
-    price: "$1,250,000",
-    favorite: false,
-    coordinates: { lat: 35.7772, lng: -105.9347 },
-    description:
-      "Exclusive mountain property with breathtaking 360-degree views and ultimate privacy, perfect for a luxury estate. This spectacular 10-acre parcel sits atop a ridge in the prestigious Sangre de Cristo Mountains, offering unobstructed views of the surrounding mountains, valleys, and the city lights of Santa Fe. The property features a mix of pinon and juniper trees with several ideal building sites already identified. A private well has been drilled and produces 15 gallons per minute of excellent quality water. The property includes architectural plans for a 6,000 sq ft custom home designed to maximize the views from every room.",
-    features: [
-      "360-degree mountain views",
-      "Private well installed",
-      "Multiple building sites",
-      "Gated community",
-      "Architectural plans included",
-    ],
-    zoning: "Residential Estate",
-    utilities: "Private well, underground electricity available",
-    access: "Paved private road with security gate",
-  },
-  {
-    id: "6",
-    images: [
-      "https://images.unsplash.com/photo-1500382017468-9049fed747ef?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1470&q=80",
-      "https://images.unsplash.com/photo-1501594907352-04cda38ebc29?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1470&q=80",
-    ],
-    type: "Residential Plot",
-    size: "0.25",
-    sizeUnit: "acres",
-    dimensions: "80 x 135 ft",
-    location: "Albuquerque, NM 87106",
-    price: "$78,500",
-    favorite: false,
-    coordinates: { lat: 35.0853, lng: -106.6056 },
-    description:
-      "Affordable residential plot in a family-friendly neighborhood with all utilities in place. This 0.25-acre lot is located in an established neighborhood with mature trees and is ready for immediate construction. The property is flat and has been cleared, with utilities already connected at the property line. The lot is within walking distance to parks, schools, and shopping. This neighborhood has seen significant appreciation in recent years, making this an excellent investment opportunity. The seller has architectural plans for a 3-bedroom, 2-bathroom home that can be included with an acceptable offer.",
-    features: [
-      "Ready to build",
-      "All utilities in place",
-      "Flat, cleared lot",
-      "Walking distance to amenities",
-      "Architectural plans available",
-    ],
-    zoning: "Residential R-1",
-    utilities: "All utilities connected at property line",
-    access: "Paved road with sidewalks",
-  },
-]
-
-// Land category data
-const categories = [
-  { id: "1", name: "Recent", icon: <Landmark size={20} color="#888" /> },
-  { id: "2", name: "Plots", icon: <Ruler size={20} color="#888" /> },
-  { id: "3", name: "Acres", icon: <Trees size={20} color="#888" /> },
-  { id: "4", name: "Hectares", icon: <Mountain size={20} color="#888" /> },
-  { id: "5", name: "Farmland", icon: <Wheat size={20} color="#888" /> },
-  { id: "6", name: "Beachfront", icon: <Palmtree size={20} color="#888" /> },
-]
-
+// PropertyCard component (remains largely the same)
 const PropertyCard = ({ property }) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
-  const [isFavorite, setIsFavorite] = useState(property.favorite)
   const navigation = useNavigation()
 
   const handleScroll = (event) => {
@@ -205,7 +35,14 @@ const PropertyCard = ({ property }) => {
   }
 
   return (
-    <View style={styles.propertyCard}>
+    <TouchableOpacity
+      style={styles.propertyCard}
+      onPress={() =>
+        navigation.navigate("PropertyDetails", {
+          property: property,
+        })
+      }
+    >
       <View style={styles.imageContainer}>
         <FlatList
           data={property.images}
@@ -216,7 +53,6 @@ const PropertyCard = ({ property }) => {
           renderItem={({ item }) => <Image source={{ uri: item }} style={styles.propertyImage} />}
           keyExtractor={(item, index) => index.toString()}
         />
-
         {/* Image pagination dots */}
         <View style={styles.paginationDots}>
           {property.images.map((_, index) => (
@@ -227,7 +63,6 @@ const PropertyCard = ({ property }) => {
           ))}
         </View>
       </View>
-
       <View style={styles.propertyDetails}>
         <View style={styles.propertyInfo}>
           <Text style={styles.propertyType}>{property.type}</Text>
@@ -238,14 +73,11 @@ const PropertyCard = ({ property }) => {
             <Text style={styles.propertySpec}>{property.dimensions}</Text>
           </View>
         </View>
-
         <Text style={styles.propertyLocation}>{property.location}</Text>
-
         {/* Coordinates display */}
         <Text style={styles.propertyCoordinates}>
           {property.coordinates.lat.toFixed(4)}, {property.coordinates.lng.toFixed(4)}
         </Text>
-
         {/* Price and Schedule Tour button in the same row */}
         <View style={styles.priceActionRow}>
           <Text style={styles.propertyPrice}>{property.price}</Text>
@@ -261,7 +93,7 @@ const PropertyCard = ({ property }) => {
           </TouchableOpacity>
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   )
 }
 
@@ -291,7 +123,6 @@ const CoordinateSearchModal = ({ visible, onClose, onSearch }) => {
               <X size={24} color="#000" />
             </TouchableOpacity>
           </View>
-
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>Latitude</Text>
             <TextInput
@@ -302,7 +133,6 @@ const CoordinateSearchModal = ({ visible, onClose, onSearch }) => {
               onChangeText={setLatitude}
             />
           </View>
-
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>Longitude</Text>
             <TextInput
@@ -313,7 +143,6 @@ const CoordinateSearchModal = ({ visible, onClose, onSearch }) => {
               onChangeText={setLongitude}
             />
           </View>
-
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>Search Radius (miles)</Text>
             <TextInput
@@ -324,7 +153,6 @@ const CoordinateSearchModal = ({ visible, onClose, onSearch }) => {
               onChangeText={setRadius}
             />
           </View>
-
           <TouchableOpacity style={styles.searchButton} onPress={handleSearch}>
             <Text style={styles.searchButtonText}>Search</Text>
           </TouchableOpacity>
@@ -334,13 +162,24 @@ const CoordinateSearchModal = ({ visible, onClose, onSearch }) => {
   )
 }
 
+// Land category data
+const categories = [
+  { id: "1", name: "Recent", icon: <Landmark size={20} color="#888" /> },
+  { id: "2", name: "Plots", icon: <Ruler size={20} color="#888" /> },
+  { id: "3", name: "Acres", icon: <Trees size={20} color="#888" /> },
+  { id: "4", name: "Hectares", icon: <Mountain size={20} color="#888" /> },
+  { id: "5", name: "Farmland", icon: <Wheat size={20} color="#888" /> },
+  { id: "6", name: "Beachfront", icon: <Palmtree size={20} color="#888" /> },
+]
+
 const HomeScreen = ({ navigation }) => {
+  const [allProperties, setAllProperties] = useState([])
   const [selectedCategory, setSelectedCategory] = useState("1")
   const [searchQuery, setSearchQuery] = useState("")
-  const [filteredProperties, setFilteredProperties] = useState(properties)
+  const [filteredProperties, setFilteredProperties] = useState([])
   const [isCoordinateModalVisible, setIsCoordinateModalVisible] = useState(false)
   const [activeCoordinateSearch, setActiveCoordinateSearch] = useState(null)
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const [page, setPage] = useState(1)
 
   // Animation values for the three bubbles
@@ -350,12 +189,10 @@ const HomeScreen = ({ navigation }) => {
 
   // Animation function for loading bubbles
   const animateBubbles = () => {
-    // Reset animations
     bubble1Animation.setValue(0)
     bubble2Animation.setValue(0)
     bubble3Animation.setValue(0)
 
-    // Create staggered animation sequence
     Animated.stagger(150, [
       Animated.sequence([
         Animated.timing(bubble1Animation, {
@@ -400,44 +237,54 @@ const HomeScreen = ({ navigation }) => {
         }),
       ]),
     ]).start(() => {
-      // Restart animation when complete if still loading
       if (isLoading) {
         animateBubbles()
       }
     })
   }
 
-  // Start or stop bubble animation when loading state changes
   useEffect(() => {
     if (isLoading) {
       animateBubbles()
     } else {
-      // Stop animations
       bubble1Animation.stopAnimation()
       bubble2Animation.stopAnimation()
       bubble3Animation.stopAnimation()
     }
   }, [isLoading])
 
-  // Interpolate animation values for translateY
   const bubble1TranslateY = bubble1Animation.interpolate({
     inputRange: [0, 1],
     outputRange: [0, -10],
   })
-
   const bubble2TranslateY = bubble2Animation.interpolate({
     inputRange: [0, 1],
     outputRange: [0, -10],
   })
-
   const bubble3TranslateY = bubble3Animation.interpolate({
     inputRange: [0, 1],
     outputRange: [0, -10],
   })
 
-  // Calculate distance between two coordinates in miles
+  useEffect(() => {
+    const fetchProperties = async () => {
+      setIsLoading(true);
+      try {
+        const data = await getPropertyDetails();
+        setAllProperties(data);
+      } catch (error) {
+        Alert.alert("Error", "Failed to fetch properties. Please try again later.");
+        console.error("Failed to fetch properties:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchProperties();
+  }, []);
+
   const calculateDistance = (lat1, lon1, lat2, lon2) => {
-    const R = 3958.8 // Earth's radius in miles
+    const R = 3958.8
     const dLat = ((lat2 - lat1) * Math.PI) / 180
     const dLon = ((lon2 - lon1) * Math.PI) / 180
     const a =
@@ -447,37 +294,27 @@ const HomeScreen = ({ navigation }) => {
     return R * c
   }
 
-  // Handle coordinate search
   const handleCoordinateSearch = (searchParams) => {
     setActiveCoordinateSearch(searchParams)
-    // The filtering will be handled in the useEffect
   }
 
-  // Filter properties based on category, search query, and coordinates
   useEffect(() => {
-    let results = [...properties]
+    let results = [...allProperties]
 
-    // Filter by category
     if (selectedCategory === "2") {
-      // Plots
       results = results.filter((property) => property.type.toLowerCase().includes("plot"))
     } else if (selectedCategory === "3") {
-      // Acres
       results = results.filter(
         (property) => property.sizeUnit.toLowerCase().includes("acre") && Number.parseFloat(property.size) >= 1,
       )
     } else if (selectedCategory === "4") {
-      // Hectares
       results = results.filter((property) => property.sizeUnit.toLowerCase().includes("hectare"))
     } else if (selectedCategory === "5") {
-      // Farmland
       results = results.filter((property) => property.type.toLowerCase().includes("agricultural"))
     } else if (selectedCategory === "6") {
-      // Beachfront
       results = results.filter((property) => property.type.toLowerCase().includes("beachfront"))
     }
 
-    // Filter by search query if it exists
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim()
       results = results.filter(
@@ -487,22 +324,19 @@ const HomeScreen = ({ navigation }) => {
           property.price.toLowerCase().includes(query) ||
           property.size.toLowerCase().includes(query) ||
           property.sizeUnit.toLowerCase().includes(query) ||
-          // Also check if the query contains coordinates in format "lat,lng"
           (query.includes(",") &&
             (() => {
               const [latStr, lngStr] = query.split(",").map((s) => s.trim())
               const lat = Number.parseFloat(latStr)
               const lng = Number.parseFloat(lngStr)
               if (!isNaN(lat) && !isNaN(lng)) {
-                // If valid coordinates, check if they're close to any property
-                return calculateDistance(lat, lng, property.coordinates.lat, property.coordinates.lng) <= 50 // Within 50 miles
+                return calculateDistance(lat, lng, property.coordinates.lat, property.coordinates.lng) <= 50
               }
               return false
             })()),
       )
     }
 
-    // Filter by coordinate search if active
     if (activeCoordinateSearch) {
       results = results.filter((property) => {
         const distance = calculateDistance(
@@ -514,37 +348,25 @@ const HomeScreen = ({ navigation }) => {
         return distance <= activeCoordinateSearch.radius
       })
     }
-
     setFilteredProperties(results)
-  }, [selectedCategory, searchQuery, activeCoordinateSearch])
+  }, [selectedCategory, searchQuery, activeCoordinateSearch, allProperties])
 
-  // Add a function to handle loading more properties
   const loadMoreProperties = () => {
-    // Only trigger loading if we're not already loading
     if (!isLoading) {
       setIsLoading(true)
-
-      // Simulate API call with timeout
       setTimeout(() => {
-        // In a real app, you would fetch more data here
-        // and append it to filteredProperties
-
-        // For demo purposes, we'll just set loading to false after a delay
         setIsLoading(false)
         setPage(page + 1)
       }, 2000)
     }
   }
 
-  // Add onEndReached handler to the ScrollView
   const handleEndReached = () => {
     loadMoreProperties()
   }
 
-  // Render loading bubbles
   const renderLoadingBubbles = () => {
     if (!isLoading) return null
-
     return (
       <View style={styles.loadingBubblesContainer}>
         <Animated.View
@@ -588,7 +410,6 @@ const HomeScreen = ({ navigation }) => {
       >
         <StatusBar barStyle="dark-content" />
         <Text style={styles.headerText}>I am looking for land in</Text>
-
         {/* Search Bar */}
         <View style={styles.searchContainer}>
           <View style={styles.searchBar}>
@@ -605,7 +426,6 @@ const HomeScreen = ({ navigation }) => {
             <MapPin size={20} color="#000" />
           </TouchableOpacity>
         </View>
-
         {/* Active coordinate search indicator */}
         {activeCoordinateSearch && (
           <View style={styles.activeSearchContainer}>
@@ -618,7 +438,6 @@ const HomeScreen = ({ navigation }) => {
             </TouchableOpacity>
           </View>
         )}
-
         {/* Categories */}
         <FlatList
           data={categories}
@@ -638,27 +457,37 @@ const HomeScreen = ({ navigation }) => {
           )}
           keyExtractor={(item) => item.id}
         />
-
         {/* Property Listings or No Match Message */}
         <View style={styles.propertiesContainer}>
-          {filteredProperties.length > 0 ? (
+          {isLoading ? (
+            renderLoadingBubbles()
+          ) : filteredProperties.length > 0 ? (
             filteredProperties.map((property) => (
               <PropertyCard key={property.id} property={property} navigation={navigation} />
             ))
           ) : (
             <View style={styles.noMatchContainer}>
-              <Text style={styles.noMatchText}>No land properties match</Text>
-              <Text style={styles.noMatchSubtext}>Try adjusting your filters or search criteria</Text>
+              <Frown size={48} color="#888" style={styles.noMatchIcon} />
+              <Text style={styles.noMatchText}>No properties found</Text>
+              <Text style={styles.noMatchSubtext}>
+                It looks like there are no listings matching your current criteria.
+              </Text>
+              <TouchableOpacity
+                style={styles.resetFiltersButton}
+                onPress={() => {
+                  setSearchQuery("");
+                  setSelectedCategory("1");
+                  setActiveCoordinateSearch(null);
+                }}
+              >
+                <Filter size={16} color="white" style={styles.resetFiltersIcon} />
+                <Text style={styles.resetFiltersText}>Reset Filters</Text>
+              </TouchableOpacity>
             </View>
           )}
         </View>
-
-        {/* Loading bubbles */}
-        {renderLoadingBubbles()}
-
         <View style={styles.bottomNavSpacer} />
       </ScrollView>
-
       {/* Coordinate Search Modal */}
       <CoordinateSearchModal
         visible={isCoordinateModalVisible}
@@ -767,6 +596,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  noMatchIcon: {
+    marginBottom: 16,
+  },
   tourText: {
     color: "#ffff",
   },
@@ -774,11 +606,29 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
     marginBottom: 8,
+    textAlign: "center",
   },
   noMatchSubtext: {
     fontSize: 14,
     color: "#666",
     textAlign: "center",
+    marginBottom: 20,
+  },
+  resetFiltersButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#088a6a",
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+  },
+  resetFiltersIcon: {
+    marginRight: 8,
+  },
+  resetFiltersText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "600",
   },
   propertyCard: {
     backgroundColor: "white",

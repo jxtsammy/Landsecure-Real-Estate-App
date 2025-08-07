@@ -17,6 +17,14 @@ const AddListingScreen = () => {
   const [showCurrencyModal, setShowCurrencyModal] = useState(false)
   const [showSuccessModal, setShowSuccessModal] = useState(false)
 
+
+  const handleAddProperty = () => {
+    () => {
+      setShowSuccessModal(false)
+      navigation.navigate("AddProperty")
+    }
+  }
+
   const navigation = useNavigation()
 
   return (
@@ -158,10 +166,7 @@ const AddListingScreen = () => {
             <View style={{ flexDirection: "row", marginTop: 20 }}>
               <TouchableOpacity
                 style={[styles.button, styles.addMoreBtn]}
-                onPress={() => {
-                  setShowSuccessModal(false)
-                  navigation.navigate("AddProperty")
-                }}
+                onPress={handleAddProperty}
               >
                 <Text style={styles.addMoreText}>Add More</Text>
               </TouchableOpacity>
