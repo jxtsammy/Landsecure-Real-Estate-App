@@ -37,7 +37,7 @@ import {
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
-import { deleteUser, userLogout, getUserProfile } from '../../../services/api/userManagement/getUsers'
+import { deleteUser, userLogout, getUserProfile } from '../../../services/api/userManagement/getUsers/users'
 
 const { width, height } = Dimensions.get('window');
 

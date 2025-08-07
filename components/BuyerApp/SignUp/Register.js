@@ -1,5 +1,4 @@
 "use client"
-
 import { useState, useRef, useEffect } from "react"
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Image, Alert } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
@@ -10,8 +9,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const SignUpScreen = ({ navigation }) => {
   // Form state
-  const [fullName, setFullName] = useState("")
+  const [firstName, setFirstName] = useState("")
+  const [lastName, setLastName] = useState("")
   const [email, setEmail] = useState("")
+  const [phoneNumber, setPhoneNumber] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [agreeToTerms, setAgreeToTerms] = useState(false)
@@ -30,20 +31,28 @@ const SignUpScreen = ({ navigation }) => {
   const [formSubmitted, setFormSubmitted] = useState(false)
 
   // Refs for focus management
+  const lastNameRef = useRef(null)
+  const phoneNumberRef = useRef(null)
   const emailRef = useRef(null)
   const passwordRef = useRef(null)
   const confirmPasswordRef = useRef(null)
 
   // Password validation function
   const validatePassword = (pass) => {
-    if (pass.length < 6) {
-      return "Password must be at least 6 characters";
+    if (pass.length < 8 || pass.length > 128) {
+      return "Password must be 8-128 characters long";
+    }
+    if (!/[a-z]/.test(pass)) {
+      return "Password must contain at least one lowercase letter";
     }
     if (!/[A-Z]/.test(pass)) {
-      return "Password must contain at least one capital letter";
+      return "Password must contain at least one uppercase letter";
     }
     if (!/\d/.test(pass)) {
       return "Password must contain at least one number";
+    }
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~]/.test(pass)) {
+      return "Password must contain at least one special character";
     }
     return "";
   };
@@ -61,7 +70,6 @@ const SignUpScreen = ({ navigation }) => {
     if (passwordTouched) {
       setPasswordError(validatePassword(password));
     }
-
     if (confirmPasswordTouched && confirmPassword) {
       setConfirmPasswordError(validateConfirmPassword(password, confirmPassword));
     }
@@ -71,10 +79,11 @@ const SignUpScreen = ({ navigation }) => {
   const isFormValid = () => {
     const passError = validatePassword(password)
     const confirmPassError = validateConfirmPassword(password, confirmPassword)
-
     return (
-      fullName.trim() !== "" &&
+      firstName.trim() !== "" &&
+      lastName.trim() !== "" &&
       email.trim() !== "" &&
+      phoneNumber.trim() !== "" &&
       password.trim() !== "" &&
       confirmPassword.trim() !== "" &&
       passError === "" &&
@@ -88,18 +97,15 @@ const SignUpScreen = ({ navigation }) => {
   // Handle profile image picker
   const pickProfileImage = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync()
-
     if (status !== "granted") {
       Alert.alert("Permission needed", "Please grant camera permissions to take a selfie")
       return
     }
-
     const result = await ImagePicker.launchCameraAsync({
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.5,
     })
-
     if (!result.canceled) {
       setProfileImage(result.assets[0].uri)
     }
@@ -108,18 +114,15 @@ const SignUpScreen = ({ navigation }) => {
   // Handle ID image picker
   const pickIdImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
-
     if (status !== "granted") {
       Alert.alert("Permission needed", "Please grant media library permissions to upload ID")
       return
     }
-
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       quality: 0.5,
     })
-
     if (!result.canceled) {
       setIdImage(result.assets[0].uri)
     }
@@ -127,67 +130,63 @@ const SignUpScreen = ({ navigation }) => {
 
   // Handle sign up
   const [loading, setLoading] = useState(false);
+  const handleSignUp = async () => {
+    // Validation logic
+    setFormSubmitted(true);
+    setPasswordTouched(true);
+    setConfirmPasswordTouched(true);
+    const passwordErr = validatePassword(password);
+    const confirmPasswordErr = validateConfirmPassword(password, confirmPassword);
+    setPasswordError(passwordErr);
+    setConfirmPasswordError(confirmPasswordErr);
 
-const handleSignUp = async () => {
-  // Validation logic
-  setFormSubmitted(true);
-  setPasswordTouched(true);
-  setConfirmPasswordTouched(true);
-
-  const passwordErr = validatePassword(password);
-  const confirmPasswordErr = validateConfirmPassword(password, confirmPassword);
-  setPasswordError(passwordErr);
-  setConfirmPasswordError(confirmPasswordErr);
-
-  if (!isFormValid()) {
-    Alert.alert("Error", "Please fill in all required fields correctly");
-    return;
-  }
-
-  setLoading(true);
-  try {
-    const userData = {
-      email,
-      password,
-      firstName,
-      lastName,
-      phone,
-      // other required fields
-    };
-
-    const { token, user } = await registerUser(userData);
-
-    // Store data securely
-    await AsyncStorage.multiSet([
-      ['@auth_token', token],
-      ['@user_email', email],
-      ['@user_role', 'buyer'], // or whatever role
-      ['@user_profile', JSON.stringify(user)]
-    ]);
-
-    // Navigate and clear navigation stack
-    navigation.reset({
-      index: 0,
-      routes: [{ name: "BottomNav" }],
-    });
-
-  } catch (error) {
-    let errorMessage = error.message;
-
-    // Special handling for network errors
-    if (error.message.includes('network', 'Network')) {
-      errorMessage = "Internet connection required. Check your network.";
+    if (!isFormValid()) {
+      Alert.alert("Error", "Please fill in all required fields correctly");
+      return;
     }
 
-    Alert.alert("Registration Error", errorMessage);
+    setLoading(true);
+    try {
+      const userData = {
+        email,
+        password,
+        firstName,
+        lastName,
+        phone: phoneNumber,
+        role: 'seller', // Changed to explicitly 'seller' for the API call
+      };
+      const { token, user } = await registerUser(userData);
 
-    // Clear sensitive fields
-    setPassword('');
-    setConfirmPassword('');
-  } finally {
-    setLoading(false);
-  }
-};
+      // Store data securely
+      await AsyncStorage.multiSet([
+        ['@auth_token', token],
+        ['@user_email', email],
+        ['@user_role', 'seller'], // Changed to explicitly 'seller' for AsyncStorage
+        ['@user_profile', JSON.stringify(user)]
+      ]);
+
+      // Navigate and clear navigation stack
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "BottomNav" }],
+      });
+    } catch (error) {
+      let errorMessage = error.message;
+      // Special handling for network errors
+      if (error.message.includes('network', 'Network')) {
+        errorMessage = "Internet connection required. Check your network.";
+      } else if (error.data && error.data.message) {
+        // If the error object from the API has a 'data.message' field, use it
+        errorMessage = Array.isArray(error.data.message) ? error.data.message.join('\n') : error.data.message;
+      }
+      Alert.alert("Registration Error", errorMessage);
+      // Clear sensitive fields
+      setPassword('');
+      setConfirmPassword('');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -198,10 +197,8 @@ const handleSignUp = async () => {
       >
         <ArrowLeft size={24} color="#005045" />
       </TouchableOpacity>
-
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Text style={styles.title}>Create new account</Text>
-
         {/* Profile Image Picker */}
         <View style={styles.profileImageContainer}>
           <View style={styles.profileImageWrapper}>
@@ -218,19 +215,52 @@ const handleSignUp = async () => {
           {formSubmitted && !profileImage && <Text style={styles.errorText}>Selfie is required</Text>}
         </View>
 
-        {/* Full Name Input */}
+        {/* First Name Input */}
         <View style={styles.inputContainer}>
-          <Text style={styles.inputLabel}>Full Name</Text>
+          <Text style={styles.inputLabel}>First Name</Text>
           <TextInput
             style={styles.input}
-            placeholder="Enter your full name"
-            value={fullName}
-            onChangeText={setFullName}
+            placeholder="Enter your first name"
+            value={firstName}
+            onChangeText={setFirstName}
+            returnKeyType="next"
+            onSubmitEditing={() => lastNameRef.current.focus()}
+            blurOnSubmit={false}
+          />
+          {formSubmitted && firstName.trim() === "" && <Text style={styles.errorText}>First name is required</Text>}
+        </View>
+
+        {/* Last Name Input */}
+        <View style={styles.inputContainer}>
+          <Text style={styles.inputLabel}>Last Name</Text>
+          <TextInput
+            ref={lastNameRef}
+            style={styles.input}
+            placeholder="Enter your last name"
+            value={lastName}
+            onChangeText={setLastName}
+            returnKeyType="next"
+            onSubmitEditing={() => phoneNumberRef.current.focus()}
+            blurOnSubmit={false}
+          />
+          {formSubmitted && lastName.trim() === "" && <Text style={styles.errorText}>Last name is required</Text>}
+        </View>
+
+        {/* Phone Number Input */}
+        <View style={styles.inputContainer}>
+          <Text style={styles.inputLabel}>Phone Number</Text>
+          <TextInput
+            ref={phoneNumberRef}
+            style={styles.input}
+            placeholder="Enter your phone number"
+            value={phoneNumber}
+            onChangeText={setPhoneNumber}
+            keyboardType="phone-pad"
             returnKeyType="next"
             onSubmitEditing={() => emailRef.current.focus()}
             blurOnSubmit={false}
           />
-          {formSubmitted && fullName.trim() === "" && <Text style={styles.errorText}>Full name is required</Text>}
+          {formSubmitted && phoneNumber.trim() === "" && <Text style={styles.errorText}>Phone number is required</Text>}
         </View>
 
         {/* Email Input */}
@@ -302,7 +332,6 @@ const handleSignUp = async () => {
           )}
           {formSubmitted && confirmPassword.trim() === "" && <Text style={styles.errorText}>Confirm password is required</Text>}
         </View>
-
 
         {/* ID Upload */}
         <View style={styles.inputContainer}>
