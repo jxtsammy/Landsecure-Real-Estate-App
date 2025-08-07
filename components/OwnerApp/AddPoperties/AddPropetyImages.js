@@ -46,6 +46,10 @@ const AddListingPhotosScreen = () => {
     setImages(updated);
   };
 
+  const handleAddImagePress = () =>{
+    navigation.navigate('AdditionalPropertyInfo', { ...previousData, images })
+  }
+
   const renderItem = ({ item, index }) =>
     item === 'add' ? (
       <TouchableOpacity style={styles.addBtn} onPress={pickImages}>
@@ -99,8 +103,8 @@ const AddListingPhotosScreen = () => {
             images.length === 0 && { backgroundColor: '#e0e0ff' },
           ]}
           disabled={images.length === 0}
-          onPress={() =>
-            navigation.navigate('AdditionalPropertyInfo', { ...previousData, images })
+          onPress={
+            handleAddImagePress
           }>
           <Text style={styles.nextText}>Next</Text>
         </TouchableOpacity>

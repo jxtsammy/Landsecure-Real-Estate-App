@@ -7,11 +7,14 @@ import {
   TouchableOpacity,
   StatusBar,
   Dimensions,
-  TextInput
+  TextInput,
+  KeyboardAvoidingView, // Import KeyboardAvoidingView
+  Platform, // Import Platform to handle different OS behaviors
+  Alert, // Ensure Alert is imported for error messages
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowLeft } from 'lucide-react-native'; // Import ArrowLeft icon
-import { loginSeller } from '../../../services/api/auth/login/loginAuth'
+import { ArrowLeft } from 'lucide-react-native';
+import { loginSeller } from '../../../services/api/auth/login/loginAuth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width, height } = Dimensions.get('window');
@@ -28,25 +31,25 @@ const LoginScreen = ({ navigation }) => {
       setError('Please enter both email and password');
       return;
     }
-
     setError('');
     setIsLoading(true);
-
     try {
       const { accessToken, refreshToken, user } = await loginSeller(email, password);
-
       // Store tokens and user data
       await AsyncStorage.multiSet([
         ['accessToken', accessToken],
         ['refreshToken', refreshToken],
         ['user', JSON.stringify(user)]
       ]);
-
       // Navigate to owner dashboard
       navigation.navigate('OwnerNav');
     } catch (err) {
-      setError(err.message);
-      Alert.alert('Login Error', err.message);
+      let errorMessage = err.message;
+      if (err.data && err.data.message) {
+        errorMessage = Array.isArray(err.data.message) ? err.data.message.join('\n') : err.data.message;
+      }
+      setError(errorMessage);
+      Alert.alert('Login Error', errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -73,15 +76,17 @@ const LoginScreen = ({ navigation }) => {
               <ArrowLeft size={20} color="#000" />
             </View>
           </TouchableOpacity>
-
-          <View style={styles.contentContainer}>
+          <KeyboardAvoidingView // Wrap content that contains inputs
+            style={styles.contentContainer}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'} // 'padding' for iOS, 'height' for Android
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0} // Adjust offset as needed
+          >
             <View style={styles.textContainer}>
               <Text style={styles.title}>Welcome Owner</Text>
               <Text style={styles.subtitle}>
                 Login to the app to continue from where you left off and to continue with you business tasks
               </Text>
             </View>
-
             <View style={styles.formContainer}>
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Email</Text>
@@ -95,7 +100,6 @@ const LoginScreen = ({ navigation }) => {
                   autoCapitalize="none"
                 />
               </View>
-
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Password</Text>
                 <TextInput
@@ -107,15 +111,15 @@ const LoginScreen = ({ navigation }) => {
                   secureTextEntry
                 />
               </View>
-
               <TouchableOpacity style={styles.forgotPasswordContainer} onPress={() => navigation.navigate('EnterOwnerResetEmail')}>
                 <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
               </TouchableOpacity>
-
+              {error ? <Text style={styles.errorText}>{error}</Text> : null}
               <TouchableOpacity style={styles.loginButton} onPress={handleLoginPress} disabled={isLoading}>
-                <Text style={styles.loginButtonText}>Login</Text>
+                <Text style={styles.loginButtonText}>
+                  {isLoading ? 'Logging in...' : 'Login'}
+                </Text>
               </TouchableOpacity>
-
               {/* Register link */}
               <View style={styles.registerContainer}>
                 <Text style={styles.registerText}>Don't have an Account? </Text>
@@ -124,7 +128,7 @@ const LoginScreen = ({ navigation }) => {
                 </TouchableOpacity>
               </View>
             </View>
-          </View>
+          </KeyboardAvoidingView>
         </LinearGradient>
       </ImageBackground>
     </View>
@@ -164,7 +168,7 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   contentContainer: {
-    flex: 1,
+    flex: 1, // Ensure it takes full height to allow KeyboardAvoidingView to work
     justifyContent: 'flex-end',
     padding: 24,
     paddingTop: StatusBar.currentHeight || 0,
@@ -240,6 +244,12 @@ const styles = StyleSheet.create({
     color: '#8A2BE2',
     fontSize: 14,
     fontWeight: 'bold',
+  },
+  errorText: {
+    color: '#FF6347', // A distinct error color
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 10,
   },
 });
 

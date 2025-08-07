@@ -7,26 +7,27 @@ import {
   TouchableOpacity,
   StatusBar,
   Dimensions,
-  TextInput
+  TextInput,
+  KeyboardAvoidingView, // Import KeyboardAvoidingView
+  Platform, // Import Platform to handle different OS behaviors
+  Alert, // Ensure Alert is imported for error messages
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowLeft } from 'lucide-react-native'; // Import ArrowLeft icon
-import { loginBuyer } from '../../../services/api/auth/login/loginAuth'
+import { ArrowLeft } from 'lucide-react-native';
+import { loginBuyer } from '../../../services/api/auth/login/loginAuth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width, height } = Dimensions.get('window');
 
-const LoginScreen = ({navigation}) => {
+const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [greeting, setGreeting] = useState('');
   const [loading, setLoading] = useState(false);
 
-
   useEffect(() => {
     // Set greeting based on time of day
     const currentHour = new Date().getHours();
-
     if (currentHour >= 5 && currentHour < 12) {
       setGreeting('Good Morning');
     } else if (currentHour >= 12 && currentHour < 18) {
@@ -38,43 +39,36 @@ const LoginScreen = ({navigation}) => {
 
   const handleLogin = async () => {
     // Basic validation
-    if (!email || !password) {
+    if (!email.trim() || !password) { // Added .trim() for email
       Alert.alert("Error", "Please enter both email and password");
       return;
     }
-
     setLoading(true);
-
     try {
       const { token, user } = await loginBuyer(email, password);
-
       // Store authentication data
       await AsyncStorage.multiSet([
         ['@auth_token', token],
         ['@user_role', 'buyer'],
         ['@user_email', email]
       ]);
-
       navigation.reset({
         index: 0,
         routes: [{ name: "BottomNav" }],
       });
-
     } catch (error) {
       let alertMessage = error.message;
-
       // Special handling for certain errors
-      if (error.message.includes('network', 'Network')) {
+      if (error.message.includes('network') || error.message.includes('Network')) { // Improved network error check
         alertMessage = "Internet connection required. Check your network.";
+      } else if (error.data && error.data.message) { // Check for API specific error message
+        alertMessage = Array.isArray(error.data.message) ? error.data.message.join('\n') : error.data.message;
       }
-
       Alert.alert("Login Error", alertMessage);
-
     } finally {
       setLoading(false);
     }
   };
-
 
   return (
     <View style={styles.container}>
@@ -97,15 +91,17 @@ const LoginScreen = ({navigation}) => {
               <ArrowLeft size={20} color="#000" />
             </View>
           </TouchableOpacity>
-
-          <View style={styles.contentContainer}>
+          <KeyboardAvoidingView // Wrap content that contains inputs
+            style={styles.contentContainer}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0} // Adjust offset as needed
+          >
             <View style={styles.textContainer}>
               <Text style={styles.title}>{greeting}</Text>
               <Text style={styles.subtitle}>
                 Login to discover tons of verified lands and properties ready for sale, all in one app
               </Text>
             </View>
-
             <View style={styles.formContainer}>
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Email</Text>
@@ -119,7 +115,6 @@ const LoginScreen = ({navigation}) => {
                   autoCapitalize="none"
                 />
               </View>
-
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Password</Text>
                 <TextInput
@@ -131,23 +126,22 @@ const LoginScreen = ({navigation}) => {
                   secureTextEntry
                 />
               </View>
-
               <TouchableOpacity style={styles.forgotPasswordContainer} onPress={() => navigation.navigate('ForgotPassword')}>
                 <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
               </TouchableOpacity>
-
-              <TouchableOpacity style={styles.loginButton} onPress={handleLogin} title={loading ? "Logining in..." : "Login"}>
-                <Text style={styles.loginButtonText}>Login</Text>
+              <TouchableOpacity style={styles.loginButton} onPress={handleLogin} disabled={loading}>
+                <Text style={styles.loginButtonText}>
+                  {loading ? "Logging in..." : "Login"}
+                </Text>
               </TouchableOpacity>
-
               <View style={styles.registerContainer}>
                 <Text style={styles.registerText}>Don't have an account? </Text>
-                <TouchableOpacity onPress={() =>  navigation.navigate("Register")}>
+                <TouchableOpacity onPress={() => navigation.navigate("Register")}>
                   <Text style={styles.registerLink}>Register</Text>
                 </TouchableOpacity>
               </View>
             </View>
-          </View>
+          </KeyboardAvoidingView>
         </LinearGradient>
       </ImageBackground>
     </View>
@@ -238,7 +232,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   loginButton: {
-    backgroundColor: '#088a6a', // Royal blue
+    backgroundColor: '#088a6a',
     paddingVertical: 16,
     borderRadius: 8,
     alignItems: 'center',

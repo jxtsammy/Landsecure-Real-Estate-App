@@ -1,13 +1,21 @@
 "use client"
-
 import { useState } from "react"
 import { View, Text, TextInput, TouchableOpacity, Modal, FlatList, StyleSheet, Dimensions } from "react-native"
 import { ArrowLeft, CheckCheck } from "lucide-react-native"
-import { useNavigation } from "@react-navigation/native"
+import { useNavigation, useRoute } from "@react-navigation/native" // Removed type imports
+import { createProperty } from '../../../services/api/propertyManagment/createProperty'
 
 const currencies = ["₵", "$", "€", "£", "¥"]
 
 const AddListingScreen = () => {
+  const navigation = useNavigation()
+  const route = useRoute() // No type parameter needed for JavaScript
+  const { previousData, images } = route.params // Destructure the params
+
+  // Log the received data for verification
+  console.log("Received previousData:", previousData)
+  console.log("Received images:", images)
+
   const [sellPrice, setSellPrice] = useState("")
   const [location, setLocation] = useState("")
   const [longitude, setLongitude] = useState("")
@@ -17,15 +25,50 @@ const AddListingScreen = () => {
   const [showCurrencyModal, setShowCurrencyModal] = useState(false)
   const [showSuccessModal, setShowSuccessModal] = useState(false)
 
-
-  const handleAddProperty = () => {
-    () => {
-      setShowSuccessModal(false)
-      navigation.navigate("AddProperty")
-    }
+  // Function to handle adding more properties (after a successful listing)
+  const handleAddMoreProperty = () => {
+    setShowSuccessModal(false)
+    // Optionally reset form fields here if you want to clear them for a new listing
+    setSellPrice("")
+    setLocation("")
+    setLongitude("")
+    setLatitude("")
+    setDescription("")
+    setCurrency("₵")
+    // Navigate back to the initial property creation screen
+    navigation.navigate("AddProperty")
   }
 
-  const navigation = useNavigation()
+  // Function to handle the actual submission of the listing
+  const handleSubmitListing = async () => {
+    try {
+      // Combine all data from previous screens and this screen
+      const fullListingData = {
+        title: previousData.propertyName, // Assuming propertyName is from previous screen
+        address: location,
+        price: sellPrice,
+        description: description,
+        images: images, // Array of File objects
+        longitude: longitude,
+        latitude: latitude,
+        currency: currency,
+        // Include any additional fields from previous screens:
+        ...previousData, // Spread all previous data
+      };
+
+      console.log("Submitting full listing data:", fullListingData);
+
+      // Call the API to create property
+      const createdProperty = await createProperty(fullListingData);
+      console.log("Property created successfully:", createdProperty);
+
+      // Show success modal on successful submission
+      setShowSuccessModal(true);
+
+    } catch (error) {
+      console.error("Failed to create property:", error);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -33,17 +76,14 @@ const AddListingScreen = () => {
       <View style={[styles.circle, { top: 40, left: 60, backgroundColor: "#FFE0E0" }]} />
       <View style={[styles.circle, { top: 150, right: 50, backgroundColor: "#D0F0FF" }]} />
       <View style={[styles.circle, { bottom: 100, left: 20, backgroundColor: "#E0FFD9" }]} />
-
       {/* Header */}
       <View style={styles.header}>
         <ArrowLeft color="#1d2951" />
         <Text style={styles.headerText}>Additional Info</Text>
       </View>
-
       <Text style={styles.title}>
         <Text style={styles.boldText}>Almost finish</Text>, complete the listing
       </Text>
-
       {/* Sell Price */}
       <Text style={styles.label}>Sell Price</Text>
       <View style={styles.inputContainer}>
@@ -60,7 +100,6 @@ const AddListingScreen = () => {
           <Text style={styles.currencyIcon}>{currency}</Text>
         </TouchableOpacity>
       </View>
-
       {/* Location */}
       <Text style={styles.label}>Location</Text>
       <View style={styles.inputContainer}>
@@ -72,7 +111,6 @@ const AddListingScreen = () => {
           style={[styles.textInput, { paddingLeft: 10, flex: 1 }]}
         />
       </View>
-
       {/* Coordinates Section */}
       <Text style={styles.label}>Coordinates</Text>
       <View style={styles.coordinatesContainer}>
@@ -89,7 +127,6 @@ const AddListingScreen = () => {
             />
           </View>
         </View>
-
         <View style={styles.coordinateInputWrapper}>
           <Text style={styles.coordinateLabel}>Latitude</Text>
           <View style={styles.coordinateInputContainer}>
@@ -104,7 +141,6 @@ const AddListingScreen = () => {
           </View>
         </View>
       </View>
-
       {/* Description */}
       <Text style={styles.label}>Description</Text>
       <TextInput
@@ -116,12 +152,10 @@ const AddListingScreen = () => {
         numberOfLines={4}
         style={styles.descriptionInput}
       />
-
       {/* Finish Button */}
-      <TouchableOpacity style={styles.finishButton} onPress={() => setShowSuccessModal(true)}>
-        <Text style={styles.finishText}>Finish</Text>
+      <TouchableOpacity style={styles.finishButton} onPress={handleSubmitListing}>
+        <Text style={styles.finishText}>Add Property</Text>
       </TouchableOpacity>
-
       {/* Currency Modal */}
       <Modal visible={showCurrencyModal} transparent animationType="slide">
         <View style={styles.modalOverlay}>
@@ -145,7 +179,6 @@ const AddListingScreen = () => {
           </View>
         </View>
       </Modal>
-
       {/* Success Modal */}
       <Modal visible={showSuccessModal} transparent animationType="slide">
         <View style={styles.modalOverlay}>
@@ -154,23 +187,19 @@ const AddListingScreen = () => {
             <View style={[styles.circle, { top: -30, right: 40, backgroundColor: "#D1F2EB" }]} />
             <View style={[styles.circle, { top: 80, left: 20, backgroundColor: "#FFDAB9" }]} />
             <View style={styles.handleBar} />
-
             <View style={styles.checkmarkContainer}>
               <CheckCheck size={48} color="white" />
             </View>
-
             <Text style={styles.successText}>Your property is now</Text>
             <Text style={styles.publishedText}>Listed</Text>
             <Text style={styles.desc}>You can now view it in the My Properties tab.</Text>
-
             <View style={{ flexDirection: "row", marginTop: 20 }}>
               <TouchableOpacity
                 style={[styles.button, styles.addMoreBtn]}
-                onPress={handleAddProperty}
+                onPress={handleAddMoreProperty}
               >
                 <Text style={styles.addMoreText}>Add More</Text>
               </TouchableOpacity>
-
               <TouchableOpacity
                 style={[styles.button, styles.finishBtn]}
                 onPress={() => {
@@ -189,7 +218,6 @@ const AddListingScreen = () => {
 }
 
 const { width } = Dimensions.get("window")
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,

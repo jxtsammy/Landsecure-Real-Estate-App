@@ -25,7 +25,7 @@ import OwnerLogin from './components/OwnerApp/Login/OwnerLogin';
 import ForgotVerification from './components/OwnerApp/OwnerForgotPassword/EmailVerification';
 import OwnerPasswordReset from './components/OwnerApp/OwnerForgotPassword/OwnerPasswordReset';
 import OwnerHome from './components/OwnerApp/Home/OwnerHome';
-import MyProperties from './components/OwnerApp/Home/MyProperties';
+import MyProperties, { TransferPropertyScreen } from './components/OwnerApp/Home/MyProperties';
 import AddProperty from './components/OwnerApp/AddPoperties/AddListing';
 import OwnerNav from './components/OwnerApp/BottomNavigation/OwnerNav';
 import OwnerSettings from './components/OwnerApp/Home/Settings';
@@ -93,6 +93,11 @@ export default function App() {
         <Stack.Screen name="AddPropertyImages" component={AddPropertyImages} />
          <Stack.Screen name="AdditionalPropertyInfo" component={AdditionalPropertyInfo} />
          <Stack.Screen name="EnterOwnerResetEmail" component={EnterOwnerResetEmail} />
+         <Stack.Screen
+          name="TransferPropertyScreen"
+          component={TransferPropertyScreen}
+          options={{ headerShown: false }} // Hide header as TransferPropertyScreen has its own custom header
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );
