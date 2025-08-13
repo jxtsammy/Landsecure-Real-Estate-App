@@ -1,43 +1,24 @@
-import API from '../../config'
+import API from '../../config';
 
-//Create Buyer
+// The API.js request interceptor will handle getting and setting the token automatically.
+// Make sure to use the same token key (`accessToken` or `admin_auth_token`) consistently.
 export const createBuyer = async (buyerData) => {
   try {
-    const response = await API.post(
-      '/users',
-      {
-        ...buyerData,
-        role: 'buyer' // Force buyer role
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Authorization': `Bearer ${await getAuthToken()}`
-        }
-      }
-    );
+    const response = await API.post('/users', {
+      ...buyerData,
+      role: 'buyer' // Force buyer role
+    });
 
-    // Remove sensitive data before returning
-    const { password, ...safeData } = response.data;
+    // The global interceptor has already returned response.data.
+    // Destructure to remove sensitive data before returning.
+    const { password, ...safeData } = response;
     return safeData;
 
   } catch (error) {
-    // Handle critical errors only
-    if (error.response?.status === 401 || error.response?.status === 403) {
-      throw new Error('Authorization required - Please login again');
-    }
+    // The error caught here is the formatted, standardized error from the
+    // API.js interceptor. It will have already handled a 401 error.
 
-    if (error.message === 'Network Error') {
-      throw new Error('Network connection failed');
-    }
-
-    // For all other errors, use generic message
-    throw new Error('Buyer creation failed. Please try again.');
+    // You can re-throw the error for the front-end to display.
+    throw error;
   }
-};
-
-// Helper to get auth token
-const getAuthToken = async () => {
-  return AsyncStorage.getItem('admin_auth_token');
 };

@@ -38,7 +38,7 @@ const OnboardingScreen = ({navigation}) => {
                 <Text style={styles.primaryButtonText}>Continue As Property Owner</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.navigate("Login")}>
+              <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.navigate("BuyerLogin")}>
                 <Text style={styles.secondaryButtonText}>Continue As Guest</Text>
               </TouchableOpacity>
             </View>

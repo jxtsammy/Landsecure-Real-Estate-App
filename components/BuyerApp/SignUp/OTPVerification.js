@@ -1,0 +1,503 @@
+"use client"
+
+import React, { useState, useEffect, useRef } from "react"
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  SafeAreaView,
+  KeyboardAvoidingView,
+  Platform,
+  Alert,
+  ActivityIndicator,
+  Dimensions,
+  Image,
+} from "react-native"
+import { ArrowLeft, Check } from "lucide-react-native"
+import AsyncStorage from "@react-native-async-storage/async-storage"
+import { verifyEmail } from "./api/verify-email"
+import { resendVerificationEmail } from "./api/resend-verification-email"
+
+const { width, height } = Dimensions.get("window")
+
+const OTPVerificationScreen = ({ navigation, route }) => {
+  const [currentScreen, setCurrentScreen] = useState("verification") // 'verification' or 'success'
+  const [otpCode, setOtpCode] = useState(["", "", "", ""])
+  const [activeIndex, setActiveIndex] = useState(0)
+  const [loading, setLoading] = useState(false)
+  const [resendLoading, setResendLoading] = useState(false)
+  const [countdown, setCountdown] = useState(0)
+  const [canResend, setCanResend] = useState(true)
+
+  // Get email from route params or AsyncStorage
+  const [email, setEmail] = useState(route?.params?.email || "")
+
+  // Refs for OTP inputs
+  const otpInputRefs = useRef([])
+
+  // Initialize refs for the 4 OTP inputs
+  useEffect(() => {
+    otpInputRefs.current = Array(4)
+      .fill()
+      .map((_, i) => otpInputRefs.current[i] || React.createRef())
+  }, [])
+
+  // Get email from AsyncStorage if not provided in route params
+  useEffect(() => {
+    const getStoredEmail = async () => {
+      if (!email) {
+        try {
+          const storedEmail = await AsyncStorage.getItem("pendingVerificationEmail")
+          if (storedEmail) {
+            setEmail(storedEmail)
+          }
+        } catch (error) {
+          console.error("Error getting stored email:", error)
+        }
+      }
+    }
+    getStoredEmail()
+  }, [email])
+
+  // Countdown timer effect
+  useEffect(() => {
+    let timer
+    if (countdown > 0) {
+      timer = setTimeout(() => {
+        setCountdown(countdown - 1)
+      }, 1000)
+    } else if (countdown === 0 && !canResend) {
+      setCanResend(true)
+    }
+    return () => clearTimeout(timer)
+  }, [countdown, canResend])
+
+  // Handle OTP input change
+  const handleOtpChange = (text, index) => {
+    // Only allow digits
+    if (!/^\d*$/.test(text)) return
+
+    const newOtp = [...otpCode]
+    newOtp[index] = text
+    setOtpCode(newOtp)
+
+    // Auto-focus next input if current input is filled
+    if (text.length === 1 && index < 3) {
+      otpInputRefs.current[index + 1]?.focus()
+      setActiveIndex(index + 1)
+    }
+  }
+
+  // Handle backspace and focus management
+  const handleKeyPress = (nativeEvent, index) => {
+    if (nativeEvent.key === "Backspace" && !otpCode[index] && index > 0) {
+      otpInputRefs.current[index - 1]?.focus()
+      setActiveIndex(index - 1)
+    }
+  }
+
+  // Handle input focus
+  const handleInputFocus = (index) => {
+    setActiveIndex(index)
+  }
+
+  // Handle resend code with real API integration
+  const handleResendCode = async () => {
+    if (!canResend || !email) return
+
+    try {
+      setResendLoading(true)
+
+      // Call the real API function
+      await resendVerificationEmail(email)
+
+      // Start countdown
+      setCountdown(60)
+      setCanResend(false)
+
+      // Show success alert
+      Alert.alert("Code Sent", "A new verification code has been sent to your email. Please check your inbox.", [
+        { text: "OK" },
+      ])
+    } catch (error) {
+      console.error("Resend error:", error)
+
+      // Show specific error message from API
+      Alert.alert("Error", error.message || "Failed to resend code. Please try again.")
+    } finally {
+      setResendLoading(false)
+    }
+  }
+
+  // Handle continue/verify with real API integration
+  const handleContinue = async () => {
+    const code = otpCode.join("")
+
+    if (code.length !== 4) {
+      Alert.alert("Error", "Please enter the complete 4-digit verification code")
+      return
+    }
+
+    try {
+      setLoading(true)
+
+      // Call the real API function
+      const { accessToken, refreshToken, accessExpiresIn, refreshExpiresIn } = await verifyEmail(code)
+
+      console.log("Email verification successful")
+
+      // Store tokens securely
+      await AsyncStorage.multiSet([
+        ["accessToken", accessToken],
+        ["refreshToken", refreshToken],
+        ["accessExpiresIn", accessExpiresIn.toString()],
+        ["refreshExpiresIn", refreshExpiresIn.toString()],
+      ])
+
+      // Clear the pending verification email
+      await AsyncStorage.removeItem("pendingVerificationEmail")
+
+      // Move to success screen
+      setCurrentScreen("success")
+    } catch (error) {
+      console.error("Verification error:", error)
+
+      // Show specific error message from API
+      Alert.alert("Verification Error", error.message || "Invalid verification code. Please try again.")
+
+      // Clear the OTP inputs on error
+      setOtpCode(["", "", "", ""])
+      setActiveIndex(0)
+      otpInputRefs.current[0]?.focus()
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Handle success continue
+  const handleSuccessContinue = () => {
+    // Navigate to next screen (replace with your actual navigation)
+    console.log("Navigating to main app...")
+
+    // Example navigation - replace with your actual route
+    if (navigation) {
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "BuyerLogin" }], // Replace with your main app route
+      })
+    } else {
+      Alert.alert("Success", "Verification completed!")
+    }
+  }
+
+  // Render OTP Verification Screen
+  const renderVerificationScreen = () => (
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      style={styles.container}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 10}
+    >
+      <SafeAreaView style={styles.safeArea}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation?.goBack()}>
+            <ArrowLeft size={24} color="#333" />
+          </TouchableOpacity>
+        </View>
+
+        {/* Content */}
+        <View style={styles.content}>
+          {/* Custom Illustration from Assets */}
+          <View style={styles.illustrationContainer}>
+            <Image
+              source={require("../../../assets/verify.png")} // Replace with your actual image path
+              style={styles.illustrationImage}
+              resizeMode="contain"
+            />
+          </View>
+
+          {/* Title and Subtitle */}
+          <Text style={styles.title}>OTP Verification</Text>
+          <Text style={styles.subtitle}>We have sent the verification code to your email address</Text>
+          {email && <Text style={styles.emailText}>{email}</Text>}
+
+          {/* OTP Input */}
+          <View style={styles.otpContainer}>
+            {otpCode.map((digit, index) => (
+              <TextInput
+                key={index}
+                ref={(el) => (otpInputRefs.current[index] = el)}
+                style={[
+                  styles.otpInput,
+                  activeIndex === index && styles.otpInputActive,
+                  digit && styles.otpInputFilled,
+                ]}
+                value={digit}
+                onChangeText={(text) => handleOtpChange(text, index)}
+                onKeyPress={({ nativeEvent }) => handleKeyPress(nativeEvent, index)}
+                onFocus={() => handleInputFocus(index)}
+                keyboardType="number-pad"
+                maxLength={1}
+                autoFocus={index === 0}
+                selectTextOnFocus
+              />
+            ))}
+          </View>
+
+          {/* Resend Code */}
+          <View style={styles.resendContainer}>
+            {canResend ? (
+              <TouchableOpacity
+                onPress={handleResendCode}
+                disabled={resendLoading || !email}
+                style={styles.resendButton}
+              >
+                {resendLoading ? (
+                  <ActivityIndicator size="small" color="#8A3FFC" />
+                ) : (
+                  <Text style={[styles.resendText, !email && styles.disabledText]}>Resend Code</Text>
+                )}
+              </TouchableOpacity>
+            ) : (
+              <Text style={styles.countdownText}>Resend code in {countdown}s</Text>
+            )}
+          </View>
+        </View>
+
+        {/* Continue Button */}
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity
+            style={[styles.continueButton, loading && styles.continueButtonDisabled]}
+            onPress={handleContinue}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text style={styles.continueButtonText}>Continue</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    </KeyboardAvoidingView>
+  )
+
+  // Render Success Screen
+  const renderSuccessScreen = () => (
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.successContainer}>
+        {/* Success Icon */}
+        <View style={styles.successIconContainer}>
+          <View style={styles.successIcon}>
+            <Check size={40} color="#8A3FFC" />
+          </View>
+        </View>
+
+        {/* Success Text */}
+        <Text style={styles.successTitle}>Success!</Text>
+        <Text style={styles.successSubtitle}>Congratulations! You have been successfully authenticated</Text>
+
+        {/* Continue Button */}
+        <View style={styles.successButtonContainer}>
+          <TouchableOpacity style={styles.continueButton} onPress={handleSuccessContinue}>
+            <Text style={styles.continueButtonText}>Continue</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </SafeAreaView>
+  )
+
+  return (
+    <View style={styles.wrapper}>
+      {currentScreen === "verification" && renderVerificationScreen()}
+      {currentScreen === "success" && renderSuccessScreen()}
+    </View>
+  )
+}
+
+const styles = StyleSheet.create({
+  wrapper: {
+    flex: 1,
+    backgroundColor: "#fff",
+  },
+  container: {
+    flex: 1,
+    backgroundColor: "#fff",
+  },
+  safeArea: {
+    flex: 1,
+  },
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  // Custom illustration styles
+  illustrationContainer: {
+    alignItems: "center",
+    marginBottom: 40,
+    width: "100%",
+    height: 200, // Adjust based on your image size
+  },
+  illustrationImage: {
+    width: "80%",
+    height: "100%",
+    maxWidth: 300, // Adjust based on your image
+    maxHeight: 200, // Adjust based on your image
+  },
+
+  // Text styles
+  title: {
+    fontSize: 28,
+    fontWeight: "bold",
+    color: "#333",
+    marginBottom: 10,
+    textAlign: "center",
+  },
+  subtitle: {
+    fontSize: 16,
+    color: "#666",
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 5,
+    paddingHorizontal: 20,
+  },
+  emailText: {
+    fontSize: 16,
+    color: "#8A3FFC",
+    fontWeight: "500",
+    marginBottom: 40,
+    textAlign: "center",
+  },
+
+  // OTP Input styles
+  otpContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    width: "80%",
+    marginBottom: 30,
+  },
+  otpInput: {
+    width: 60,
+    height: 60,
+    borderWidth: 2,
+    borderColor: "#E0E0E0",
+    borderRadius: 12,
+    textAlign: "center",
+    fontSize: 24,
+    fontWeight: "600",
+    color: "#333",
+    backgroundColor: "#fff",
+  },
+  otpInputActive: {
+    borderColor: "#8A3FFC",
+    shadowColor: "#8A3FFC",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  otpInputFilled: {
+    backgroundColor: "#F8F6FF",
+  },
+
+  // Resend styles
+  resendContainer: {
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  resendButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+  },
+  resendText: {
+    fontSize: 16,
+    color: "#8A3FFC",
+    fontWeight: "500",
+  },
+  disabledText: {
+    color: "#ccc",
+  },
+  countdownText: {
+    fontSize: 16,
+    color: "#999",
+  },
+
+  // Button styles
+  buttonContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: 30,
+  },
+  continueButton: {
+    backgroundColor: "#8A3FFC",
+    borderRadius: 25,
+    paddingVertical: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 50,
+  },
+  continueButtonDisabled: {
+    backgroundColor: "#D0C5E8",
+  },
+  continueButtonText: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "600",
+  },
+
+  // Success screen styles
+  successContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20,
+  },
+  successIconContainer: {
+    marginBottom: 40,
+  },
+  successIcon: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    borderWidth: 3,
+    borderColor: "#8A3FFC",
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#F8F6FF",
+  },
+  successTitle: {
+    fontSize: 32,
+    fontWeight: "bold",
+    color: "#333",
+    marginBottom: 15,
+  },
+  successSubtitle: {
+    fontSize: 16,
+    color: "#999",
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 60,
+  },
+  successButtonContainer: {
+    width: "100%",
+    position: "absolute",
+    bottom: 30,
+    paddingHorizontal: 20,
+  },
+})
+
+export default OTPVerificationScreen

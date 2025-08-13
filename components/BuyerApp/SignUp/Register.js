@@ -131,7 +131,7 @@ const SignUpScreen = ({ navigation }) => {
   // Handle sign up
   const [loading, setLoading] = useState(false);
   const handleSignUp = async () => {
-    // Validation logic
+    // Front-end validation (this part is perfect, keep it as is)
     setFormSubmitted(true);
     setPasswordTouched(true);
     setConfirmPasswordTouched(true);
@@ -153,33 +153,48 @@ const SignUpScreen = ({ navigation }) => {
         firstName,
         lastName,
         phone: phoneNumber,
-        role: 'seller', // Changed to explicitly 'seller' for the API call
+        role: 'buyer',
       };
-      const { token, user } = await registerUser(userData);
 
-      // Store data securely
-      await AsyncStorage.multiSet([
-        ['@auth_token', token],
-        ['@user_email', email],
-        ['@user_role', 'seller'], // Changed to explicitly 'seller' for AsyncStorage
-        ['@user_profile', JSON.stringify(user)]
-      ]);
+      // With the improved API function, this line is less likely to fail and
+      // will throw a clean error if it does.
+      const response = await registerUser(userData);
+      const { token, user } = response;
 
-      // Navigate and clear navigation stack
-      navigation.reset({
-        index: 0,
-        routes: [{ name: "BottomNav" }],
-      });
-    } catch (error) {
-      let errorMessage = error.message;
-      // Special handling for network errors
-      if (error.message.includes('network', 'Network')) {
-        errorMessage = "Internet connection required. Check your network.";
-      } else if (error.data && error.data.message) {
-        // If the error object from the API has a 'data.message' field, use it
-        errorMessage = Array.isArray(error.data.message) ? error.data.message.join('\n') : error.data.message;
+      // Store data securely with a check to prevent AsyncStorage errors.
+      if (token && user) {
+        await AsyncStorage.multiSet([
+          ['@auth_token', token],
+          ['@user_email', email],
+          ['@user_role', 'buyer'],
+          ['@user_profile', JSON.stringify(user)]
+        ]);
+
+        // Navigate and clear navigation stack
+        navigation.reset({
+          index: 0,
+          routes: [{
+            name: "BuyerVerification",
+            params: {
+              email // The email is passed here
+            }
+          }],
+        });
+      } else {
+        // This case would be for an unexpected API response.
+        throw new Error("Login token missing from response.");
       }
-      Alert.alert("Registration Error", errorMessage);
+    } catch (error) {
+      // The error object now consistently has a simple, clean `message`.
+      const errorMessage = error.message;
+
+      // Special handling for a specific network message
+      if (errorMessage === 'Network connection failed') {
+         Alert.alert("Network Error", "Please check your internet connection.");
+      } else {
+         Alert.alert("Registration Error", errorMessage);
+      }
+
       // Clear sensitive fields
       setPassword('');
       setConfirmPassword('');

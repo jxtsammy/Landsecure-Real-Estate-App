@@ -2,8 +2,8 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import Home from './components/BuyerApp/Home/Home';
 import Splash from './components/Splashscreen/Splash';
-import Login from './components/BuyerApp/SignIn/Login';
-import Register from './components/BuyerApp/SignUp/Register';
+import BuyerLogin from './components/BuyerApp/SignIn/Login';
+import BuyerRegister from './components/BuyerApp/SignUp/Register';
 import TourOptions from './components/BuyerApp/TourSection/TourOptions';
 import TourSchedule from './components/BuyerApp/TourSection/InpersonTour';
 import TourDetails from './components/BuyerApp/TourSection/ScheduleDetails';
@@ -38,6 +38,7 @@ import CallScreen from './components/ChatApp/CallScreen';
 import AddPropertyImages from './components/OwnerApp/AddPoperties/AddPropetyImages';
 import AdditionalPropertyInfo from './components/OwnerApp/AddPoperties/AdditionalPropertyInfo'
 import EnterOwnerResetEmail from './components/OwnerApp/OwnerForgotPassword/EnterOwnerEmail'
+import BuyerVerification from './components/BuyerApp/SignUp/OTPVerification'
 const Stack = createStackNavigator();
 
 export default function App() {
@@ -48,8 +49,8 @@ export default function App() {
         screenOptions={{ headerShown: false }}>
         <Stack.Screen name="Home" component={Home} />
         <Stack.Screen name="Splash" component={Splash} />
-        <Stack.Screen name="Login" component={Login} />
-        <Stack.Screen name="Register" component={Register} />
+        <Stack.Screen name="BuyerLogin" component={BuyerLogin} />
+        <Stack.Screen name="BuyerRegister" component={BuyerRegister} />
         <Stack.Screen name="TourOptions" component={TourOptions} />
         <Stack.Screen name="TourSchedule" component={TourSchedule} />
         <Stack.Screen name="TourDetails" component={TourDetails} />
@@ -93,6 +94,7 @@ export default function App() {
         <Stack.Screen name="AddPropertyImages" component={AddPropertyImages} />
          <Stack.Screen name="AdditionalPropertyInfo" component={AdditionalPropertyInfo} />
          <Stack.Screen name="EnterOwnerResetEmail" component={EnterOwnerResetEmail} />
+         <Stack.Screen name="BuyerVerification" component={BuyerVerification} />
          <Stack.Screen
           name="TransferPropertyScreen"
           component={TransferPropertyScreen}

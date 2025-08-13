@@ -2,30 +2,18 @@ import API from '../../config';
 
 export const registerUser = async (userData) => {
   try {
-    const response = await API.post('/auth/register',
-      userData,
-      {
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      }
-    );
+    // The global API instance handles headers and error status by default.
+    // The interceptor will also return `response.data`.
+    const response = await API.post('/auth/register', userData);
 
-    return response.data; // Typically returns { user, token }
+    return response;
 
   } catch (error) {
-    let errorMessage = 'Registration failed. Please try again.';
+    // The error caught here is the formatted, standardized error from the
+    // API.js interceptor.
 
-    if (error.response) {
-      // Handle specific error status codes
-      if (error.response.status === 400) {
-        errorMessage = error.response.data?.message || 'Invalid registration data';
-      }
-      else if (error.response.status === 409) {
-        errorMessage = 'User already exists';
-      }
-    }
-
-    throw new Error(errorMessage);
+    // You can simply re-throw this error so your front-end component can
+    // catch and display it.
+    throw error;
   }
 };
