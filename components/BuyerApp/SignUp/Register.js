@@ -1,9 +1,7 @@
 "use client"
 import { useState, useRef, useEffect } from "react"
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Image, Alert } from "react-native"
-import { SafeAreaView } from "react-native-safe-area-context"
-import { Eye, EyeOff, Camera, User, Upload, Check, X, ArrowLeft } from "lucide-react-native"
-import * as ImagePicker from "expo-image-picker"
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from "react-native"
+import { Eye, EyeOff, Check, ArrowLeft } from "lucide-react-native"
 import { registerUser } from '../../../services/api/auth/register/buyerRegister'
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -20,8 +18,7 @@ const SignUpScreen = ({ navigation }) => {
   // UI state
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [profileImage, setProfileImage] = useState(null)
-  const [idImage, setIdImage] = useState(null)
+  const [loading, setLoading] = useState(false)
 
   // Validation state
   const [passwordError, setPasswordError] = useState("")
@@ -40,40 +37,57 @@ const SignUpScreen = ({ navigation }) => {
   // Password validation function
   const validatePassword = (pass) => {
     if (pass.length < 8 || pass.length > 128) {
-      return "Password must be 8-128 characters long";
+      return "Password must be 8-128 characters long"
     }
     if (!/[a-z]/.test(pass)) {
-      return "Password must contain at least one lowercase letter";
+      return "Password must contain at least one lowercase letter"
     }
     if (!/[A-Z]/.test(pass)) {
-      return "Password must contain at least one uppercase letter";
+      return "Password must contain at least one uppercase letter"
     }
     if (!/\d/.test(pass)) {
-      return "Password must contain at least one number";
+      return "Password must contain at least one number"
     }
-    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~]/.test(pass)) {
-      return "Password must contain at least one special character";
+    if (!/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?~]/.test(pass)) {
+      return "Password must contain at least one special character"
     }
-    return "";
-  };
+    return ""
+  }
 
   // Confirm password validation
   const validateConfirmPassword = (pass, confirmPass) => {
     if (pass !== confirmPass) {
-      return "Passwords do not match";
+      return "Passwords do not match"
     }
-    return "";
-  };
+    return ""
+  }
+
+  // Function to validate if a string is a valid email token
+  const isValidEmailToken = (token) => {
+    if (!token || typeof token !== "string") return false
+
+    // Check if it's a valid email format (which is what we expect)
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    const isValidEmail = emailRegex.test(token.trim())
+
+    if (isValidEmail) {
+      console.log("Valid email token received:", token)
+      return true
+    } else {
+      console.log("Invalid email token format:", token)
+      return false
+    }
+  }
 
   // Update password validation when password changes
   useEffect(() => {
     if (passwordTouched) {
-      setPasswordError(validatePassword(password));
+      setPasswordError(validatePassword(password))
     }
     if (confirmPasswordTouched && confirmPassword) {
-      setConfirmPasswordError(validateConfirmPassword(password, confirmPassword));
+      setConfirmPasswordError(validateConfirmPassword(password, confirmPassword))
     }
-  }, [password, confirmPassword, passwordTouched, confirmPasswordTouched]);
+  }, [password, confirmPassword, passwordTouched, confirmPasswordTouched])
 
   // Check if form is valid
   const isFormValid = () => {
@@ -88,147 +102,216 @@ const SignUpScreen = ({ navigation }) => {
       confirmPassword.trim() !== "" &&
       passError === "" &&
       confirmPassError === "" &&
-      profileImage !== null &&
-      idImage !== null &&
       agreeToTerms
     )
   }
 
-  // Handle profile image picker
-  const pickProfileImage = async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync()
-    if (status !== "granted") {
-      Alert.alert("Permission needed", "Please grant camera permissions to take a selfie")
-      return
-    }
-    const result = await ImagePicker.launchCameraAsync({
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.5,
-    })
-    if (!result.canceled) {
-      setProfileImage(result.assets[0].uri)
-    }
-  }
-
-  // Handle ID image picker
-  const pickIdImage = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
-    if (status !== "granted") {
-      Alert.alert("Permission needed", "Please grant media library permissions to upload ID")
-      return
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 0.5,
-    })
-    if (!result.canceled) {
-      setIdImage(result.assets[0].uri)
-    }
-  }
-
-  // Handle sign up
-  const [loading, setLoading] = useState(false);
+  // Handle sign up with integrated API
   const handleSignUp = async () => {
-    // Front-end validation (this part is perfect, keep it as is)
-    setFormSubmitted(true);
-    setPasswordTouched(true);
-    setConfirmPasswordTouched(true);
-    const passwordErr = validatePassword(password);
-    const confirmPasswordErr = validateConfirmPassword(password, confirmPassword);
-    setPasswordError(passwordErr);
-    setConfirmPasswordError(confirmPasswordErr);
+    // Front-end validation
+    setFormSubmitted(true)
+    setPasswordTouched(true)
+    setConfirmPasswordTouched(true)
+    const passwordErr = validatePassword(password)
+    const confirmPasswordErr = validateConfirmPassword(password, confirmPassword)
+    setPasswordError(passwordErr)
+    setConfirmPasswordError(confirmPasswordErr)
 
     if (!isFormValid()) {
-      Alert.alert("Error", "Please fill in all required fields correctly");
-      return;
+      Alert.alert("Error", "Please fill in all required fields correctly")
+      return
     }
 
-    setLoading(true);
+    setLoading(true)
     try {
+      // Prepare user data for API
       const userData = {
-        email,
+        email: email.trim().toLowerCase(),
         password,
-        firstName,
-        lastName,
-        phone: phoneNumber,
-        role: 'buyer',
-      };
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        phone: phoneNumber.trim(),
+        role: "buyer",
+      }
 
-      // With the improved API function, this line is less likely to fail and
-      // will throw a clean error if it does.
-      const response = await registerUser(userData);
-      const { token, user } = response;
+      console.log("Registering user with data:", {
+        ...userData,
+        password: "[HIDDEN]", // Don't log passwords
+      })
 
-      // Store data securely with a check to prevent AsyncStorage errors.
-      if (token && user) {
+      // Call the API
+      const response = await registerUser(userData)
+
+      console.log("Registration API response:", response)
+
+      // Handle successful registration - look for email token
+      let emailToken = null
+      let user = null
+
+      // Try different possible response structures for email tokens
+      if (response) {
+        // Look for common token field names that might contain the email
+        const possibleTokenFields = [
+          "token",
+          "email_token",
+          "verification_token",
+          "emailToken",
+          "verificationToken",
+          "email",
+          "userEmail",
+          "user_email",
+        ]
+
+        // Check direct response
+        for (const field of possibleTokenFields) {
+          if (response[field] && isValidEmailToken(response[field])) {
+            emailToken = response[field]
+            break
+          }
+        }
+
+        // Check nested data structure
+        if (!emailToken && response.data) {
+          for (const field of possibleTokenFields) {
+            if (response.data[field] && isValidEmailToken(response.data[field])) {
+              emailToken = response.data[field]
+              break
+            }
+          }
+        }
+
+        // Check auth object
+        if (!emailToken && response.auth) {
+          for (const field of possibleTokenFields) {
+            if (response.auth[field] && isValidEmailToken(response.auth[field])) {
+              emailToken = response.auth[field]
+              break
+            }
+          }
+        }
+
+        // Check result object
+        if (!emailToken && response.result) {
+          for (const field of possibleTokenFields) {
+            if (response.result[field] && isValidEmailToken(response.result[field])) {
+              emailToken = response.result[field]
+              break
+            }
+          }
+        }
+
+        // Get user data
+        user = response.user || response.data?.user || response.auth?.user || response.result?.user || response
+      }
+
+      console.log(
+        "Extracted email token:",
+        emailToken ? `Valid email token: ${emailToken}` : "No valid email token found",
+      )
+      console.log("Extracted user:", user ? "User data found" : "No user data found")
+
+      // Log all potential token fields for debugging
+      console.log("All response fields:", Object.keys(response || {}))
+      if (response?.data) console.log("Response.data fields:", Object.keys(response.data))
+      if (response?.auth) console.log("Response.auth fields:", Object.keys(response.auth))
+
+      if (emailToken && isValidEmailToken(emailToken)) {
+        // Store the email token and user data
         await AsyncStorage.multiSet([
-          ['@auth_token', token],
-          ['@user_email', email],
-          ['@user_role', 'buyer'],
-          ['@user_profile', JSON.stringify(user)]
-        ]);
+          ["@email_token", emailToken.trim()], // Store as email token instead of auth token
+          ["@user_email", email.trim().toLowerCase()],
+          ["@verification_email", emailToken.trim()], // Email to verify
+          ["@user_role", "buyer"],
+          ["@user_profile", JSON.stringify(user || {})],
+          ["pendingVerificationEmail", emailToken.trim()], // For OTP verification
+        ])
 
-        // Navigate and clear navigation stack
+        console.log("Email token stored successfully, navigating to verification...")
+
+        // Navigate to verification screen with the email token
         navigation.reset({
           index: 0,
-          routes: [{
-            name: "BuyerVerification",
-            params: {
-              email // The email is passed here
-            }
-          }],
-        });
+          routes: [
+            {
+              name: "BuyerVerification", // Replace with your actual verification screen name
+              params: {
+                email: emailToken.trim(), // Use the email token for verification
+              },
+            },
+          ],
+        })
       } else {
-        // This case would be for an unexpected API response.
-        throw new Error("Login token missing from response.");
+        // Log detailed debugging information
+        console.error("No valid email token found!")
+        console.error("Response structure:", JSON.stringify(response, null, 2))
+
+        // Check if registration was successful but no email token provided
+        if (response && (response.success || response.message?.includes("success"))) {
+          Alert.alert(
+            "Registration Successful",
+            "Your account has been created successfully. Please proceed to verify your email.",
+            [
+              {
+                text: "Continue",
+                onPress: () => {
+                  // Navigate to verification with the original email
+                  AsyncStorage.setItem("pendingVerificationEmail", email.trim().toLowerCase())
+                  navigation.reset({
+                    index: 0,
+                    routes: [
+                      {
+                        name: "BuyerVerification",
+                        params: {
+                          email: email.trim().toLowerCase(),
+                        },
+                      },
+                    ],
+                  })
+                },
+              },
+            ],
+          )
+        } else {
+          throw new Error("Registration completed but no email verification token was provided by the server.")
+        }
       }
     } catch (error) {
-      // The error object now consistently has a simple, clean `message`.
-      const errorMessage = error.message;
+      console.error("Registration error:", error)
 
-      // Special handling for a specific network message
-      if (errorMessage === 'Network connection failed') {
-         Alert.alert("Network Error", "Please check your internet connection.");
-      } else {
-         Alert.alert("Registration Error", errorMessage);
+      // Handle different types of errors
+      let errorMessage = error.message || "Registration failed. Please try again."
+
+      // Handle specific error cases
+      if (error.message === "Network connection failed") {
+        errorMessage = "Please check your internet connection and try again."
+      } else if (error.message.includes("Email already exists")) {
+        errorMessage = "This email is already registered. Please use a different email or try logging in."
+      } else if (error.message.includes("Invalid email")) {
+        errorMessage = "Please enter a valid email address."
+      } else if (error.message.includes("Password")) {
+        errorMessage = "Password does not meet requirements. Please check and try again."
       }
 
-      // Clear sensitive fields
-      setPassword('');
-      setConfirmPassword('');
+      Alert.alert("Registration Error", errorMessage)
+
+      // Clear sensitive fields on error
+      setPassword("")
+      setConfirmPassword("")
+      setPasswordTouched(false)
+      setConfirmPasswordTouched(false)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   return (
     <View style={styles.container}>
       {/* Back Button */}
-      <TouchableOpacity
-        style={styles.backButton}
-        onPress={() => navigation.goBack()}
-      >
+      <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
         <ArrowLeft size={24} color="#005045" />
       </TouchableOpacity>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Text style={styles.title}>Create new account</Text>
-        {/* Profile Image Picker */}
-        <View style={styles.profileImageContainer}>
-          <View style={styles.profileImageWrapper}>
-            {profileImage ? (
-              <Image source={{ uri: profileImage }} style={styles.profileImage} />
-            ) : (
-              <User size={60} color="#005045" />
-            )}
-          </View>
-          <TouchableOpacity style={styles.cameraButton} onPress={pickProfileImage}>
-            <Camera size={20} color="white" />
-          </TouchableOpacity>
-          <Text style={styles.profileImageText}>Take a selfie for verification</Text>
-          {formSubmitted && !profileImage && <Text style={styles.errorText}>Selfie is required</Text>}
-        </View>
 
         {/* First Name Input */}
         <View style={styles.inputContainer}>
@@ -241,6 +324,7 @@ const SignUpScreen = ({ navigation }) => {
             returnKeyType="next"
             onSubmitEditing={() => lastNameRef.current.focus()}
             blurOnSubmit={false}
+            editable={!loading}
           />
           {formSubmitted && firstName.trim() === "" && <Text style={styles.errorText}>First name is required</Text>}
         </View>
@@ -257,6 +341,7 @@ const SignUpScreen = ({ navigation }) => {
             returnKeyType="next"
             onSubmitEditing={() => phoneNumberRef.current.focus()}
             blurOnSubmit={false}
+            editable={!loading}
           />
           {formSubmitted && lastName.trim() === "" && <Text style={styles.errorText}>Last name is required</Text>}
         </View>
@@ -274,6 +359,7 @@ const SignUpScreen = ({ navigation }) => {
             returnKeyType="next"
             onSubmitEditing={() => emailRef.current.focus()}
             blurOnSubmit={false}
+            editable={!loading}
           />
           {formSubmitted && phoneNumber.trim() === "" && <Text style={styles.errorText}>Phone number is required</Text>}
         </View>
@@ -292,6 +378,7 @@ const SignUpScreen = ({ navigation }) => {
             returnKeyType="next"
             onSubmitEditing={() => passwordRef.current.focus()}
             blurOnSubmit={false}
+            editable={!loading}
           />
           {formSubmitted && email.trim() === "" && <Text style={styles.errorText}>Email is required</Text>}
         </View>
@@ -313,8 +400,9 @@ const SignUpScreen = ({ navigation }) => {
               returnKeyType="next"
               onSubmitEditing={() => confirmPasswordRef.current.focus()}
               blurOnSubmit={false}
+              editable={!loading}
             />
-            <TouchableOpacity style={styles.eyeIcon} onPress={() => setShowPassword(!showPassword)}>
+            <TouchableOpacity style={styles.eyeIcon} onPress={() => setShowPassword(!showPassword)} disabled={loading}>
               {showPassword ? <EyeOff size={20} color="#666" /> : <Eye size={20} color="#666" />}
             </TouchableOpacity>
           </View>
@@ -337,37 +425,30 @@ const SignUpScreen = ({ navigation }) => {
               }}
               secureTextEntry={!showConfirmPassword}
               returnKeyType="done"
+              editable={!loading}
             />
-            <TouchableOpacity style={styles.eyeIcon} onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
+            <TouchableOpacity
+              style={styles.eyeIcon}
+              onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+              disabled={loading}
+            >
               {showConfirmPassword ? <EyeOff size={20} color="#666" /> : <Eye size={20} color="#666" />}
             </TouchableOpacity>
           </View>
           {confirmPasswordTouched && confirmPasswordError !== "" && (
             <Text style={styles.errorText}>{confirmPasswordError}</Text>
           )}
-          {formSubmitted && confirmPassword.trim() === "" && <Text style={styles.errorText}>Confirm password is required</Text>}
-        </View>
-
-        {/* ID Upload */}
-        <View style={styles.inputContainer}>
-          <Text style={styles.inputLabel}>Government ID</Text>
-          <TouchableOpacity style={styles.idUploadButton} onPress={pickIdImage}>
-            <Upload size={20} color="#005045" />
-            <Text style={styles.idUploadText}>{idImage ? "ID Uploaded" : "Upload a photo of your government ID"}</Text>
-          </TouchableOpacity>
-          {idImage && (
-            <View style={styles.idPreviewContainer}>
-              <Image source={{ uri: idImage }} style={styles.idPreview} />
-              <TouchableOpacity style={styles.removeIdButton} onPress={() => setIdImage(null)}>
-                <X size={16} color="white" />
-              </TouchableOpacity>
-            </View>
+          {formSubmitted && confirmPassword.trim() === "" && (
+            <Text style={styles.errorText}>Confirm password is required</Text>
           )}
-          {formSubmitted && !idImage && <Text style={styles.errorText}>Government ID is required</Text>}
         </View>
 
         {/* Terms and Conditions */}
-        <TouchableOpacity style={styles.termsContainer} onPress={() => setAgreeToTerms(!agreeToTerms)}>
+        <TouchableOpacity
+          style={styles.termsContainer}
+          onPress={() => setAgreeToTerms(!agreeToTerms)}
+          disabled={loading}
+        >
           <View style={[styles.checkbox, agreeToTerms && styles.checkboxChecked]}>
             {agreeToTerms && <Check size={14} color="white" />}
           </View>
@@ -381,15 +462,26 @@ const SignUpScreen = ({ navigation }) => {
         )}
 
         {/* Sign Up Button */}
-        <TouchableOpacity style={styles.signUpButton} onPress={handleSignUp} title={loading ? "Creating account..." : "Sign Up"}>
-          <Text style={styles.signUpButtonText}>Sign up</Text>
+        <TouchableOpacity
+          style={[styles.signUpButton, loading && styles.signUpButtonDisabled]}
+          onPress={handleSignUp}
+          disabled={loading}
+        >
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color="white" />
+              <Text style={styles.signUpButtonText}>Creating account...</Text>
+            </View>
+          ) : (
+            <Text style={styles.signUpButtonText}>Sign up</Text>
+          )}
         </TouchableOpacity>
 
         {/* Login Link */}
         <View style={styles.loginContainer}>
           <Text style={styles.loginText}>
             Already have an account?{" "}
-            <Text style={styles.loginLink} onPress={() => navigation.navigate("Login")}>
+            <Text style={styles.loginLink} onPress={() => !loading && navigation.navigate("Login")}>
               Back to Sign In
             </Text>
           </Text>
@@ -405,7 +497,7 @@ const styles = StyleSheet.create({
     backgroundColor: "white",
   },
   backButton: {
-    position: 'absolute',
+    position: "absolute",
     top: 50,
     left: 20,
     zIndex: 10,
@@ -421,43 +513,7 @@ const styles = StyleSheet.create({
     color: "#000",
     textAlign: "center",
     marginVertical: 20,
-    paddingTop: 40
-  },
-  profileImageContainer: {
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  profileImageWrapper: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: "#f0f0f0",
-    justifyContent: "center",
-    alignItems: "center",
-    overflow: "hidden",
-  },
-  profileImage: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-  },
-  cameraButton: {
-    position: "absolute",
-    bottom: 25,
-    right: "35%",
-    backgroundColor: "#000",
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: "white",
-  },
-  profileImageText: {
-    marginTop: 8,
-    fontSize: 14,
-    color: "#666",
+    paddingTop: 40,
   },
   inputContainer: {
     marginBottom: 16,
@@ -491,42 +547,6 @@ const styles = StyleSheet.create({
   },
   eyeIcon: {
     padding: 12,
-  },
-  idUploadButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "#f9f9f9",
-  },
-  idUploadText: {
-    marginLeft: 10,
-    fontSize: 16,
-    color: "#666",
-  },
-  idPreviewContainer: {
-    marginTop: 10,
-    position: "relative",
-  },
-  idPreview: {
-    width: "100%",
-    height: 150,
-    borderRadius: 8,
-    resizeMode: "cover",
-  },
-  removeIdButton: {
-    position: "absolute",
-    top: 10,
-    right: 10,
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    justifyContent: "center",
-    alignItems: "center",
   },
   termsContainer: {
     flexDirection: "row",
@@ -565,10 +585,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 10,
   },
+  signUpButtonDisabled: {
+    backgroundColor: "#cccccc",
+  },
   signUpButtonText: {
     color: "white",
     fontSize: 18,
     fontWeight: "bold",
+  },
+  loadingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
   },
   loginContainer: {
     alignItems: "center",

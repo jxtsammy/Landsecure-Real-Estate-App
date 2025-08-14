@@ -235,10 +235,10 @@ const AuthScreens = ({ navigation }) => {
       ])
 
       // Navigate to the main app
-      Alert.alert("Registration Complete", "Your account has been created successfully!", [
+      Alert.alert("Registration Complete", "An EMail would be sent to you after you account is approved", [
         {
           text: "Continue",
-          onPress: () => navigation.navigate("OwnerNav"),
+          onPress: () => navigation.navigate("OwnerLogin"),
         },
       ])
     } catch (error) {

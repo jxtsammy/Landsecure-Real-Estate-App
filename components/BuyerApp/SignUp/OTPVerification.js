@@ -17,14 +17,13 @@ import {
 } from "react-native"
 import { ArrowLeft, Check } from "lucide-react-native"
 import AsyncStorage from "@react-native-async-storage/async-storage"
-import { verifyEmail } from "./api/verify-email"
-import { resendVerificationEmail } from "./api/resend-verification-email"
+import { verifyEmail, resendVerificationEmail } from "../../../services/api/auth/verifications/userVerification"
 
 const { width, height } = Dimensions.get("window")
 
 const OTPVerificationScreen = ({ navigation, route }) => {
   const [currentScreen, setCurrentScreen] = useState("verification") // 'verification' or 'success'
-  const [otpCode, setOtpCode] = useState(["", "", "", ""])
+  const [otpCode, setOtpCode] = useState(["", "", "", "", "", ""]) // Changed to 6 digits
   const [activeIndex, setActiveIndex] = useState(0)
   const [loading, setLoading] = useState(false)
   const [resendLoading, setResendLoading] = useState(false)
@@ -37,9 +36,9 @@ const OTPVerificationScreen = ({ navigation, route }) => {
   // Refs for OTP inputs
   const otpInputRefs = useRef([])
 
-  // Initialize refs for the 4 OTP inputs
+  // Initialize refs for the 6 OTP inputs (changed from 4 to 6)
   useEffect(() => {
-    otpInputRefs.current = Array(4)
+    otpInputRefs.current = Array(6)
       .fill()
       .map((_, i) => otpInputRefs.current[i] || React.createRef())
   }, [])
@@ -52,9 +51,14 @@ const OTPVerificationScreen = ({ navigation, route }) => {
           const storedEmail = await AsyncStorage.getItem("pendingVerificationEmail")
           if (storedEmail) {
             setEmail(storedEmail)
+          } else {
+            // Set default email if no email is found
+            setEmail("user@example.com")
           }
         } catch (error) {
           console.error("Error getting stored email:", error)
+          // Set default email on error
+          setEmail("user@example.com")
         }
       }
     }
@@ -84,7 +88,7 @@ const OTPVerificationScreen = ({ navigation, route }) => {
     setOtpCode(newOtp)
 
     // Auto-focus next input if current input is filled
-    if (text.length === 1 && index < 3) {
+    if (text.length === 1 && index < 5) {
       otpInputRefs.current[index + 1]?.focus()
       setActiveIndex(index + 1)
     }
@@ -110,7 +114,7 @@ const OTPVerificationScreen = ({ navigation, route }) => {
     try {
       setResendLoading(true)
 
-      // Call the real API function
+      // Call the real API function with the email from route params
       await resendVerificationEmail(email)
 
       // Start countdown
@@ -118,14 +122,36 @@ const OTPVerificationScreen = ({ navigation, route }) => {
       setCanResend(false)
 
       // Show success alert
-      Alert.alert("Code Sent", "A new verification code has been sent to your email. Please check your inbox.", [
+      Alert.alert("Code Sent", `A new verification code has been sent to ${email}. Please check your inbox.`, [
         { text: "OK" },
       ])
     } catch (error) {
       console.error("Resend error:", error)
 
-      // Show specific error message from API
-      Alert.alert("Error", error.message || "Failed to resend code. Please try again.")
+      // Handle specific error cases
+      let errorMessage = error.message || "Failed to resend code. Please try again."
+
+      if (error.message.includes("not registered") || error.message.includes("not found")) {
+        errorMessage = "Email not found. Please sign up again."
+
+        // Offer to navigate back to registration
+        Alert.alert("Registration Required", errorMessage, [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Sign Up",
+            onPress: () => {
+              // Navigate back to sign up screen
+              navigation.reset({
+                index: 0,
+                routes: [{ name: "SignUp" }], // Replace with your sign up route
+              })
+            },
+          },
+        ])
+        return
+      }
+
+      Alert.alert("Error", errorMessage)
     } finally {
       setResendLoading(false)
     }
@@ -135,18 +161,20 @@ const OTPVerificationScreen = ({ navigation, route }) => {
   const handleContinue = async () => {
     const code = otpCode.join("")
 
-    if (code.length !== 4) {
-      Alert.alert("Error", "Please enter the complete 4-digit verification code")
+    if (!email) {
+      Alert.alert("Error", "Email address is required for verification")
       return
     }
 
     try {
       setLoading(true)
 
-      // Call the real API function
-      const { accessToken, refreshToken, accessExpiresIn, refreshExpiresIn } = await verifyEmail(code)
+      console.log("Verifying code:", code, "for email:", email)
 
-      console.log("Email verification successful")
+      // Call the real API function to verify the 6-digit code with email
+      const { accessToken, refreshToken, accessExpiresIn, refreshExpiresIn } = await verifyEmail(code, email)
+
+      console.log("Email verification successful for:", email)
 
       // Store tokens securely
       await AsyncStorage.multiSet([
@@ -154,6 +182,7 @@ const OTPVerificationScreen = ({ navigation, route }) => {
         ["refreshToken", refreshToken],
         ["accessExpiresIn", accessExpiresIn.toString()],
         ["refreshExpiresIn", refreshExpiresIn.toString()],
+        ["verifiedEmail", email], // Store the verified email
       ])
 
       // Clear the pending verification email
@@ -164,11 +193,33 @@ const OTPVerificationScreen = ({ navigation, route }) => {
     } catch (error) {
       console.error("Verification error:", error)
 
-      // Show specific error message from API
-      Alert.alert("Verification Error", error.message || "Invalid verification code. Please try again.")
+      // Handle specific error cases
+      let errorMessage = error.message || "Invalid verification code. Please try again."
+
+      if (error.message.includes("Registration not found") || error.message.includes("not registered")) {
+        errorMessage = "Registration not found. Please sign up again."
+
+        // Offer to navigate back to registration
+        Alert.alert("Registration Required", errorMessage, [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Sign Up",
+            onPress: () => {
+              // Navigate back to sign up screen
+              navigation.reset({
+                index: 0,
+                routes: [{ name: "RegisterOwner" }], // Replace with your sign up route
+              })
+            },
+          },
+        ])
+        return
+      }
+
+      Alert.alert("Verification Error", errorMessage)
 
       // Clear the OTP inputs on error
-      setOtpCode(["", "", "", ""])
+      setOtpCode(["", "", "", "", "", ""])
       setActiveIndex(0)
       otpInputRefs.current[0]?.focus()
     } finally {
@@ -194,25 +245,25 @@ const OTPVerificationScreen = ({ navigation, route }) => {
 
   // Render OTP Verification Screen
   const renderVerificationScreen = () => (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={styles.container}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 10}
-    >
-      <SafeAreaView style={styles.safeArea}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => navigation?.goBack()}>
-            <ArrowLeft size={24} color="#333" />
-          </TouchableOpacity>
-        </View>
+    <SafeAreaView style={styles.safeArea}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation?.goBack()}>
+          <ArrowLeft size={24} color="#333" />
+        </TouchableOpacity>
+      </View>
 
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.container}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+      >
         {/* Content */}
         <View style={styles.content}>
           {/* Custom Illustration from Assets */}
           <View style={styles.illustrationContainer}>
             <Image
-              source={require("../../../assets/verify.png")} // Replace with your actual image path
+              source={require("./assets/verify.png")} // Replace with your actual image path
               style={styles.illustrationImage}
               resizeMode="contain"
             />
@@ -223,7 +274,23 @@ const OTPVerificationScreen = ({ navigation, route }) => {
           <Text style={styles.subtitle}>We have sent the verification code to your email address</Text>
           {email && <Text style={styles.emailText}>{email}</Text>}
 
-          {/* OTP Input */}
+          {/* Registration Issue Warning */}
+          <View style={styles.warningContainer}>
+            <Text style={styles.warningText}>If you're having trouble, you may need to sign up again.</Text>
+            <TouchableOpacity
+              style={styles.signUpAgainButton}
+              onPress={() => {
+                navigation.reset({
+                  index: 0,
+                  routes: [{ name: "SignUp" }], // Replace with your sign up route
+                })
+              }}
+            >
+              <Text style={styles.signUpAgainText}>Sign Up Again</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* OTP Input - Updated for 6 digits */}
           <View style={styles.otpContainer}>
             {otpCode.map((digit, index) => (
               <TextInput
@@ -238,7 +305,7 @@ const OTPVerificationScreen = ({ navigation, route }) => {
                 onChangeText={(text) => handleOtpChange(text, index)}
                 onKeyPress={({ nativeEvent }) => handleKeyPress(nativeEvent, index)}
                 onFocus={() => handleInputFocus(index)}
-                keyboardType="number-pad"
+                keyboardType="default" // Changed from "number-pad" to "default"
                 maxLength={1}
                 autoFocus={index === 0}
                 selectTextOnFocus
@@ -246,7 +313,7 @@ const OTPVerificationScreen = ({ navigation, route }) => {
             ))}
           </View>
 
-          {/* Resend Code */}
+          {/* Resend Code - Now inside KeyboardAvoidingView */}
           <View style={styles.resendContainer}>
             {canResend ? (
               <TouchableOpacity
@@ -264,24 +331,24 @@ const OTPVerificationScreen = ({ navigation, route }) => {
               <Text style={styles.countdownText}>Resend code in {countdown}s</Text>
             )}
           </View>
-        </View>
 
-        {/* Continue Button */}
-        <View style={styles.buttonContainer}>
-          <TouchableOpacity
-            style={[styles.continueButton, loading && styles.continueButtonDisabled]}
-            onPress={handleContinue}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <Text style={styles.continueButtonText}>Continue</Text>
-            )}
-          </TouchableOpacity>
+          {/* Continue Button - Now inside KeyboardAvoidingView */}
+          <View style={styles.buttonContainer}>
+            <TouchableOpacity
+              style={[styles.continueButton, loading && styles.continueButtonDisabled]}
+              onPress={handleContinue}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.continueButtonText}>Continue</Text>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
-      </SafeAreaView>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   )
 
   // Render Success Screen
@@ -332,6 +399,7 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 20,
     paddingTop: 10,
+    paddingBottom: 10,
   },
   backButton: {
     width: 40,
@@ -380,19 +448,48 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#8A3FFC",
     fontWeight: "500",
-    marginBottom: 40,
+    marginBottom: 20,
     textAlign: "center",
   },
 
-  // OTP Input styles
+  // Warning container styles
+  warningContainer: {
+    backgroundColor: "#FFF3CD",
+    borderColor: "#FFEAA7",
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 20,
+    width: "100%",
+    alignItems: "center",
+  },
+  warningText: {
+    fontSize: 14,
+    color: "#856404",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  signUpAgainButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  signUpAgainText: {
+    fontSize: 14,
+    color: "#8A3FFC",
+    fontWeight: "500",
+    textDecorationLine: "underline",
+  },
+
+  // OTP Input styles - Updated for 6 digits
   otpContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
-    width: "80%",
+    width: "95%", // Increased width to accommodate 6 inputs
     marginBottom: 30,
+    paddingHorizontal: 5,
   },
   otpInput: {
-    width: 60,
+    width: 50, // Reduced width to fit 6 inputs
     height: 60,
     borderWidth: 2,
     borderColor: "#E0E0E0",
@@ -402,6 +499,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#333",
     backgroundColor: "#fff",
+    marginHorizontal: 2, // Added margin between inputs
   },
   otpInputActive: {
     borderColor: "#8A3FFC",
@@ -418,7 +516,7 @@ const styles = StyleSheet.create({
   // Resend styles
   resendContainer: {
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 30,
   },
   resendButton: {
     paddingVertical: 10,
@@ -439,8 +537,9 @@ const styles = StyleSheet.create({
 
   // Button styles
   buttonContainer: {
-    paddingHorizontal: 20,
-    paddingBottom: 30,
+    width: "100%",
+    paddingHorizontal: 0,
+    marginBottom: 20,
   },
   continueButton: {
     backgroundColor: "#8A3FFC",
