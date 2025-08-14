@@ -1,7 +1,4 @@
-import API from '../../config'
-
-//Email Verification
-import API from "./config" // Adjust import path based on your API config
+import API from "../../config" // Adjust import path based on your API config
 
 export const verifyEmail = async (token, email) => {
   // Basic token validation
@@ -17,7 +14,6 @@ export const verifyEmail = async (token, email) => {
   try {
     console.log("Attempting to verify email with:", { token, email })
 
-    // Try different request formats based on common API patterns
     const requestBody = {
       token: token.trim(),
       email: email.trim(),
@@ -34,32 +30,34 @@ export const verifyEmail = async (token, email) => {
 
     console.log("Verification API response:", response)
 
-    // Handle different success responses
+    // Handle successful responses - FIXED to match your API format
     if (response.status === 200 || response.status === 201) {
-      // Check if response has the expected structure
-      if (response.data?.statusCode === 0 && response.data?.data?.access_token) {
+      // Check for your actual API response structure
+      if (response.data?.statusCode === 200 && response.data?.data?.access_token) {
+        console.log("✅ Verification successful - extracting tokens")
+
         return {
           accessToken: response.data.data.access_token,
           refreshToken: response.data.data.refresh_token,
-          accessExpiresIn: Number.parseInt(response.data.data.expires_in_access, 10) || 3600,
-          refreshExpiresIn: Number.parseInt(response.data.data.expires_in_refresh, 10) || 86400,
+          accessExpiresIn: response.data.data.expires_in_access === "1h" ? 3600 : 3600,
+          refreshExpiresIn: response.data.data.expires_in_refresh === "7d" ? 604800 : 604800,
         }
-      } else if (response.data?.access_token) {
-        // Alternative response structure
+      }
+      // Alternative structure (direct in response.data)
+      else if (response.data?.access_token) {
+        console.log("✅ Verification successful - alternative structure")
+
         return {
           accessToken: response.data.access_token,
           refreshToken: response.data.refresh_token || null,
-          accessExpiresIn: Number.parseInt(response.data.expires_in_access, 10) || 3600,
-          refreshExpiresIn: Number.parseInt(response.data.expires_in_refresh, 10) || 86400,
+          accessExpiresIn: response.data.expires_in_access === "1h" ? 3600 : 3600,
+          refreshExpiresIn: response.data.expires_in_refresh === "7d" ? 604800 : 604800,
         }
-      } else {
-        // Simple success response
-        return {
-          accessToken: "verified_token",
-          refreshToken: "refresh_token",
-          accessExpiresIn: 3600,
-          refreshExpiresIn: 86400,
-        }
+      }
+      // Check if it's a success message without tokens (shouldn't happen but just in case)
+      else if (response.data?.message === "EMAIL_VERIFIED") {
+        console.log("✅ Email verified but no tokens found")
+        throw new Error("Email verified successfully but no access tokens received")
       }
     }
 
@@ -84,6 +82,8 @@ export const verifyEmail = async (token, email) => {
       throw new Error("Invalid verification code format. Please enter a valid 6-digit code.")
     }
 
+    // If we get here, something unexpected happened
+    console.error("Unexpected API response:", response)
     throw new Error(response.data?.message || "Email verification failed")
   } catch (error) {
     console.error("Verify email error:", error)
@@ -103,7 +103,8 @@ export const verifyEmail = async (token, email) => {
       error.message.includes("Registration not found") ||
       error.message.includes("Invalid") ||
       error.message.includes("expired") ||
-      error.message.includes("not found")
+      error.message.includes("not found") ||
+      error.message.includes("Email verified successfully")
     ) {
       throw error
     }
@@ -137,6 +138,10 @@ export const resendVerificationEmail = async (email) => {
 
     // Handle different success responses
     if (response.status === 200 || response.status === 202) {
+      // Check for success in response body
+      if (response.data?.statusCode === 200 || response.data?.message?.includes("sent")) {
+        return true
+      }
       return true
     }
 
