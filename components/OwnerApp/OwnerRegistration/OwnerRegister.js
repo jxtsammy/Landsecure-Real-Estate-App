@@ -13,6 +13,7 @@ import {
   Platform,
   Dimensions,
   Alert,
+  ActivityIndicator,
 } from "react-native"
 import { Eye, EyeOff, ArrowLeft, CheckSquare, Square } from "lucide-react-native"
 const { width, height } = Dimensions.get("window")
@@ -39,7 +40,7 @@ const decorativeCircles = [
 
 const AuthScreens = ({ navigation }) => {
   // State for form inputs and screen navigation
-  const [currentScreen, setCurrentScreen] = useState("createAccount") // 'createAccount', 'verifyCode'
+  const [currentScreen, setCurrentScreen] = useState("createAccount")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
@@ -51,22 +52,13 @@ const AuthScreens = ({ navigation }) => {
   const [nationality, setNationality] = useState("")
   const [dateOfBirth, setDateOfBirth] = useState("")
   const [ghanaCardNumber, setGhanaCardNumber] = useState("")
-  const [role] = useState("seller") // Fixed role that can't be edited
+  const [role] = useState("seller")
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [agreeToTerms, setAgreeToTerms] = useState(false)
-  const [verificationCode, setVerificationCode] = useState(["", "", "", ""])
+  // Changed verification code to a single token string
+  const [verificationToken, setVerificationToken] = useState("")
   const [loading, setLoading] = useState(false)
-
-  // Refs for verification code inputs
-  const codeInputRefs = useRef([])
-
-  // Initialize refs for the 4 verification code inputs
-  useEffect(() => {
-    codeInputRefs.current = Array(4)
-      .fill()
-      .map((_, i) => codeInputRefs.current[i] || React.createRef())
-  }, [])
 
   // Password validation function
   const validatePassword = (password) => {
@@ -88,7 +80,6 @@ const AuthScreens = ({ navigation }) => {
   const validateForm = () => {
     const errors = []
 
-    // Required fields validation
     if (!email.trim()) errors.push("Email is required")
     if (!password.trim()) errors.push("Password is required")
     if (!confirmPassword.trim()) errors.push("Confirm password is required")
@@ -100,13 +91,11 @@ const AuthScreens = ({ navigation }) => {
     if (!dateOfBirth.trim()) errors.push("Date of birth is required")
     if (!ghanaCardNumber.trim()) errors.push("Ghana card number is required")
 
-    // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (email && !emailRegex.test(email)) {
       errors.push("Please enter a valid email address")
     }
 
-    // Password validation
     const passwordValidation = validatePassword(password)
     if (password && !passwordValidation.isValid) {
       if (!passwordValidation.minLength) errors.push("Password must be at least 8 characters long")
@@ -115,32 +104,15 @@ const AuthScreens = ({ navigation }) => {
       if (!passwordValidation.hasNumbers) errors.push("Password must contain at least one number")
     }
 
-    // Password match validation
     if (password && confirmPassword && password !== confirmPassword) {
       errors.push("Passwords do not match")
     }
 
-    // Terms agreement validation
     if (!agreeToTerms) {
       errors.push("You must agree to the terms and conditions")
     }
 
     return errors
-  }
-
-  // Function to handle verification code input with auto-focus
-  const handleCodeChange = (text, index) => {
-    // Only allow digits
-    if (!/^\d*$/.test(text)) return
-
-    const newCode = [...verificationCode]
-    newCode[index] = text
-    setVerificationCode(newCode)
-
-    // Auto-focus next input if current input is filled
-    if (text.length === 1 && index < 3) {
-      codeInputRefs.current[index + 1].focus()
-    }
   }
 
   // Function to handle sign up button press
@@ -155,7 +127,6 @@ const AuthScreens = ({ navigation }) => {
     try {
       setLoading(true)
 
-      // Prepare the registration data
       const userData = {
         email: email.trim().toLowerCase(),
         password,
@@ -167,41 +138,34 @@ const AuthScreens = ({ navigation }) => {
         nationality: nationality.trim(),
         dateOfBirth: dateOfBirth.trim(),
         ghanaCardNumber: ghanaCardNumber.trim(),
-        role,
+        role: "seller", // Ensure the role is 'seller' for this flow
       }
 
-      // Call the registration API
-      const response = await registerSeller(userData)
+      // Call the createSeller function with the complete userData object
+      const response = await createSeller(userData)
 
-      console.log("Registration successful:", {
-        email,
-        firstName,
-        lastName,
-        phone,
-        surname,
-        otherNames,
-        nationality,
-        dateOfBirth,
-        ghanaCardNumber,
-        role,
-      })
+      // Check for the specific success message from the API documentation
+      if (response && response.statusCode === 0 && response.message === "User registration successful") {
+        console.log("Registration successful for:", email)
+        await AsyncStorage.setItem("pendingVerificationEmail", email)
+        setCurrentScreen("verifyCode")
+      } else {
+         console.error("API returned an unexpected success response:", response)
+         let errorMessage = "Registration failed. Please try again."
+         if (response && response.error) {
+           errorMessage = response.error
+         }
+         Alert.alert("Registration Error", errorMessage)
+      }
 
-      // On successful registration, move to verification screen
-      setCurrentScreen("verifyCode")
-
-      // Optionally store email for verification reference
-      await AsyncStorage.setItem("pendingVerificationEmail", email)
     } catch (error) {
-      console.error("Registration error:", error)
-
-      // Handle specific error cases
+      console.error("Registration error:", error.response ? error.response.data : error.message)
       let errorMessage = "Registration failed. Please try again."
-      if (error.message === "Email already registered") {
-        errorMessage = "This email is already registered. Please login instead."
-      } else if (error.message === "Network connection failed") {
+
+      if (error.response && error.response.data && error.response.data.error) {
+         errorMessage = error.response.data.error
+      } else if (error.message.includes("Network")) {
         errorMessage = "Unable to connect. Please check your internet connection."
-      } else if (error.message.includes("Invalid registration data")) {
-        errorMessage = "Please check your registration details and try again."
       }
 
       Alert.alert("Registration Error", errorMessage)
@@ -210,96 +174,94 @@ const AuthScreens = ({ navigation }) => {
     }
   }
 
+
   // Function to handle verify button press
   const handleVerify = async () => {
-    const code = verificationCode.join("") // Combine the 4 digits
+    // Return early if the component is already loading
+    if (loading) return;
 
-    // Validate code length
-    if (code.length !== 4) {
-      Alert.alert("Error", "Please enter the complete 4-digit verification code")
-      return
+    // Check if a token is present
+    if (!verificationToken) {
+      Alert.alert("Error", "Verification token is missing");
+      return;
     }
 
     try {
-      setLoading(true)
+      setLoading(true);
 
-      // Call verification API with the 4-digit code
-      const { accessToken, refreshToken } = await verifyEmail(code)
+      console.log("Verifying email with token:", verificationToken);
 
-      console.log("Email verification successful")
+      // Call the verifyEmail function from your API file
+      const result = await verifyEmail(verificationToken);
 
-      // Store tokens securely
-      await AsyncStorage.multiSet([
-        ["accessToken", accessToken],
-        ["refreshToken", refreshToken],
-      ])
+      // Check if the result from the API call indicates a success
+      if (result.success) {
+        // Destructure the tokens from the nested data property
+        const { access_token, refresh_token } = result.data.data;
 
-      // Navigate to the main app
-      Alert.alert("Registration Complete", "An EMail would be sent to you after you account is approved", [
-        {
-          text: "Continue",
-          onPress: () => navigation.navigate("OwnerLogin"),
-        },
-      ])
-    } catch (error) {
-      console.error("Verification failed:", error)
+        console.log("✅ Email verification successful");
 
-      let errorMessage = "Verification failed. Please try again."
+        // Store tokens for future authenticated requests
+        await AsyncStorage.multiSet([
+          ["accessToken", access_token],
+          ["refreshToken", refresh_token],
+        ]);
 
-      if (error.message.includes("Invalid or expired token")) {
-        errorMessage = "Invalid or expired verification code"
-      } else if (error.message.includes("Verification token not found")) {
-        errorMessage = "This verification code is not recognized"
-      } else if (error.message === "Network connection failed") {
-        errorMessage = "Unable to connect. Please check your internet"
+        // Display a success message and navigate to the next screen
+        Alert.alert(
+          "Registration Complete",
+          "An email will be sent to you after your account is approved.",
+          [{
+            text: "Continue",
+            onPress: () => navigation.navigate("OwnerLogin"),
+          }, ],
+        );
+
+      } else {
+        // Display the specific error message returned by the API function
+        Alert.alert("Verification Error", result.error || "Unable to verify email. Please try again.");
       }
 
-      Alert.alert("Verification Error", errorMessage)
+    } catch (error) {
+      // This catch block will only execute for unexpected, unhandled errors
+      console.error("An unexpected error occurred during verification:", error);
+      Alert.alert("Verification Error", "An unexpected error occurred. Please try again.");
+
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
+
 
   const handleTokenResend = async () => {
+    if (loading) return
+
     try {
       setLoading(true)
-
-      // Get the email from storage or state
-      const email = (await AsyncStorage.getItem("pendingVerificationEmail")) || ""
-
-      // Call the resend API
-      const success = await resendVerificationEmail(email)
-
-      if (success) {
-        Alert.alert("Email Sent", `Verification email resent to ${email}. Please check your inbox.`)
+      const pendingEmail = (await AsyncStorage.getItem("pendingVerificationEmail")) || email
+      if (!pendingEmail) {
+        Alert.alert("Error", "No email found to resend a code to.")
+        return
       }
+      await resendVerificationEmail(pendingEmail)
+      Alert.alert("Email Sent", `Verification email resent to ${pendingEmail}. Please check your inbox.`)
     } catch (error) {
       console.error("Resend error:", error)
-
       let errorMessage = error.message
-
-      // Handle specific error cases
-      if (error.message.includes("Please enter a valid email")) {
-        errorMessage = "Please enter a valid email address"
-      } else if (error.message.includes("Email not found")) {
-        errorMessage = "This email is not registered in our system"
-      } else if (error.message.includes("Please wait")) {
+      if (error.message.includes("Please wait")) {
         errorMessage = "Please wait a few minutes before requesting another email"
       } else if (error.message.includes("Network connection failed")) {
         errorMessage = "Unable to connect. Please check your internet connection"
       }
-
       Alert.alert("Error", errorMessage)
     } finally {
       setLoading(false)
     }
   }
 
-  // Render the step indicator
   const renderStepIndicator = () => {
     const totalSteps = 2
     let currentStep
-
     switch (currentScreen) {
       case "createAccount":
         currentStep = 1
@@ -317,7 +279,6 @@ const AuthScreens = ({ navigation }) => {
           const stepNumber = index + 1
           const isActive = stepNumber === currentStep
           const isPast = stepNumber < currentStep
-
           return (
             <View key={index} style={styles.stepItem}>
               <View style={[styles.stepCircle, isActive && styles.activeStepCircle, isPast && styles.pastStepCircle]}>
@@ -331,7 +292,6 @@ const AuthScreens = ({ navigation }) => {
     )
   }
 
-  // Render the Create Account screen
   const renderCreateAccountScreen = () => (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -393,7 +353,7 @@ const AuthScreens = ({ navigation }) => {
           <Text style={styles.inputLabel}>Phone Number *</Text>
           <TextInput
             style={styles.input}
-            placeholder="Enter your phone number"
+            placeholder="+XXX XXXXXXXX"
             keyboardType="phone-pad"
             value={phone}
             onChangeText={setPhone}
@@ -412,7 +372,7 @@ const AuthScreens = ({ navigation }) => {
 
         <View style={styles.inputContainer}>
           <Text style={styles.inputLabel}>Date of Birth *</Text>
-          <TextInput style={styles.input} placeholder="DD/MM/YYYY" value={dateOfBirth} onChangeText={setDateOfBirth} />
+          <TextInput style={styles.input} placeholder="YYYY-MM-DD" value={dateOfBirth} onChangeText={setDateOfBirth} />
         </View>
 
         <View style={styles.inputContainer}>
@@ -527,7 +487,6 @@ const AuthScreens = ({ navigation }) => {
     </KeyboardAvoidingView>
   )
 
-  // Render the Verify Code screen
   const renderVerifyCodeScreen = () => (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -539,44 +498,35 @@ const AuthScreens = ({ navigation }) => {
           <ArrowLeft size={24} color="#000" />
         </TouchableOpacity>
 
-        <Text style={styles.title}>Verify Code</Text>
+        <Text style={styles.title}>Verify Token</Text>
         <Text style={styles.subtitle}>
-          Please enter the code we just sent to email{"\n"}
-          <Text style={styles.emailHighlight}>{email || "example@gmail.com"}</Text>
+          Please enter the verification token from your email.
         </Text>
 
-        <View style={styles.codeInputContainer}>
-          {verificationCode.map((digit, index) => (
-            <TextInput
-              key={index}
-              ref={(el) => (codeInputRefs.current[index] = el)}
-              style={styles.codeInput}
-              value={digit}
-              onChangeText={(text) => handleCodeChange(text, index)}
-              keyboardType="number-pad"
-              maxLength={1}
-              autoFocus={index === 0}
-              onKeyPress={({ nativeEvent }) => {
-                // Handle backspace to move to previous input
-                if (nativeEvent.key === "Backspace" && !digit && index > 0) {
-                  codeInputRefs.current[index - 1].focus()
-                }
-              }}
-            />
-          ))}
+        <View style={styles.inputContainer}>
+          <Text style={styles.inputLabel}>Verification Token</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter verification token"
+            value={verificationToken}
+            onChangeText={setVerificationToken}
+            autoCapitalize="none"
+            keyboardType="default"
+          />
         </View>
 
+
         <View style={styles.resendContainer}>
-          <Text style={styles.resendText}>Didn't receive OTP?</Text>
+          <Text style={styles.resendText}>Didn't receive the email?</Text>
           <TouchableOpacity onPress={handleTokenResend}>
-            <Text style={styles.resendLink}>Resend code</Text>
+            <Text style={styles.resendLink}>Resend email</Text>
           </TouchableOpacity>
         </View>
 
         <TouchableOpacity
           style={[styles.button, loading && styles.disabledButton]}
           onPress={handleVerify}
-          disabled={loading}
+          disabled={loading || !verificationToken.trim()}
         >
           <Text style={styles.buttonText}>{loading ? "Verifying..." : "Verify"}</Text>
         </TouchableOpacity>
@@ -637,6 +587,7 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     paddingHorizontal: 5,
     zIndex: 1,
+    paddingTop: 50
   },
   stepItem: {
     flexDirection: "row",
@@ -707,6 +658,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 16,
     fontSize: 16,
+    marginHorizontal: 10
   },
   disabledInput: {
     backgroundColor: "#e9ecef",
@@ -794,15 +746,31 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     marginVertical: 30,
+    width: "100%", // Added for better mobile responsiveness
+    paddingHorizontal: 5,
   },
   codeInput: {
-    width: 70,
-    height: 60,
+    width: width / 7, // Dynamic width for responsiveness
+    height: width / 7, // Ensure it's a square
     backgroundColor: "#f7f7f9",
     borderRadius: 8,
     textAlign: "center",
     fontSize: 24,
     fontWeight: "600",
+    borderWidth: 2,
+    borderColor: "#f7f7f9",
+  },
+  codeInputActive: {
+    borderColor: "#8A2BE2",
+    shadowColor: "#8A2BE2",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  codeInputFilled: {
+    backgroundColor: "#F8F6FF",
+    borderColor: "#F8F6FF",
   },
   resendContainer: {
     flexDirection: "row",

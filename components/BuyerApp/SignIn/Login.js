@@ -8,9 +8,10 @@ import {
   StatusBar,
   Dimensions,
   TextInput,
-  KeyboardAvoidingView, // Import KeyboardAvoidingView
-  Platform, // Import Platform to handle different OS behaviors
-  Alert, // Ensure Alert is imported for error messages
+  KeyboardAvoidingView,
+  Platform,
+  Alert,
+  ActivityIndicator, // Added for loading state
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowLeft } from 'lucide-react-native';
@@ -39,10 +40,11 @@ const LoginScreen = ({ navigation }) => {
 
   const handleLogin = async () => {
     // Basic validation
-    if (!email.trim() || !password) { // Added .trim() for email
-      Alert.alert("Error", "Please enter both email and password");
+    if (!email.trim() || !password) {
+      Alert.alert("Error", "Please enter both email and password.");
       return;
     }
+
     setLoading(true);
     try {
       const { token, user } = await loginBuyer(email, password);
@@ -52,18 +54,32 @@ const LoginScreen = ({ navigation }) => {
         ['@user_role', 'buyer'],
         ['@user_email', email]
       ]);
+
+      // Navigate to the main app screen
       navigation.reset({
         index: 0,
         routes: [{ name: "BottomNav" }],
       });
     } catch (error) {
-      let alertMessage = error.message;
-      // Special handling for certain errors
-      if (error.message.includes('network') || error.message.includes('Network')) { // Improved network error check
-        alertMessage = "Internet connection required. Check your network.";
-      } else if (error.data && error.data.message) { // Check for API specific error message
-        alertMessage = Array.isArray(error.data.message) ? error.data.message.join('\n') : error.data.message;
+      let alertMessage = "An unexpected error occurred. Please try again.";
+
+      // Check for common API error structures
+      if (error.data && error.data.message) {
+        // Handle specific API error messages
+        const apiMessage = Array.isArray(error.data.message) ? error.data.message.join('\n') : error.data.message;
+        if (apiMessage.includes("Invalid credentials") || apiMessage.includes("Invalid email or password")) {
+          alertMessage = "Invalid email or password. Please try again.";
+        } else if (apiMessage.includes("User not found") || apiMessage.includes("User not registered")) {
+          alertMessage = "User not found. Please check your email or register a new account.";
+        } else {
+          alertMessage = apiMessage;
+        }
+      } else if (error.message.includes('network') || error.message.includes('Network')) {
+        alertMessage = "Internet connection required. Please check your network.";
+      } else {
+        alertMessage = error.message;
       }
+
       Alert.alert("Login Error", alertMessage);
     } finally {
       setLoading(false);
@@ -91,10 +107,11 @@ const LoginScreen = ({ navigation }) => {
               <ArrowLeft size={20} color="#000" />
             </View>
           </TouchableOpacity>
-          <KeyboardAvoidingView // Wrap content that contains inputs
+
+          <KeyboardAvoidingView // Wrapped the main content for keyboard avoidance
             style={styles.contentContainer}
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0} // Adjust offset as needed
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 10}
           >
             <View style={styles.textContainer}>
               <Text style={styles.title}>{greeting}</Text>
@@ -102,6 +119,7 @@ const LoginScreen = ({ navigation }) => {
                 Login to discover tons of verified lands and properties ready for sale, all in one app
               </Text>
             </View>
+
             <View style={styles.formContainer}>
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Email</Text>
@@ -131,7 +149,7 @@ const LoginScreen = ({ navigation }) => {
               </TouchableOpacity>
               <TouchableOpacity style={styles.loginButton} onPress={handleLogin} disabled={loading}>
                 <Text style={styles.loginButtonText}>
-                  {loading ? "Logging in..." : "Login"}
+                  {loading ? <ActivityIndicator color="#fff" /> : "Login"}
                 </Text>
               </TouchableOpacity>
               <View style={styles.registerContainer}>

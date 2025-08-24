@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -8,9 +8,10 @@ import {
   StatusBar,
   Dimensions,
   TextInput,
-  KeyboardAvoidingView, // Import KeyboardAvoidingView
-  Platform, // Import Platform to handle different OS behaviors
-  Alert, // Ensure Alert is imported for error messages
+  KeyboardAvoidingView,
+  Platform,
+  Alert,
+  ActivityIndicator, // Added for loading state
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowLeft } from 'lucide-react-native';
@@ -22,17 +23,30 @@ const { width, height } = Dimensions.get('window');
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [greeting, setGreeting] = useState('');
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    // Set greeting based on time of day
+    const currentHour = new Date().getHours();
+    if (currentHour >= 5 && currentHour < 12) {
+      setGreeting('Good Morning');
+    } else if (currentHour >= 12 && currentHour < 18) {
+      setGreeting('Good Afternoon');
+    } else {
+      setGreeting('Good Evening');
+    }
+  }, []);
 
   const handleLoginPress = async () => {
     // Basic validation
     if (!email.trim() || !password) {
-      setError('Please enter both email and password');
+      setError('Please enter both email and password.');
       return;
     }
     setError('');
-    setIsLoading(true);
+    setLoading(true);
     try {
       const { accessToken, refreshToken, user } = await loginSeller(email, password);
       // Store tokens and user data
@@ -44,14 +58,29 @@ const LoginScreen = ({ navigation }) => {
       // Navigate to owner dashboard
       navigation.navigate('OwnerNav');
     } catch (err) {
-      let errorMessage = err.message;
+      let errorMessage = "An unexpected error occurred. Please try again.";
+
+      // Check for common API error structures
       if (err.data && err.data.message) {
-        errorMessage = Array.isArray(err.data.message) ? err.data.message.join('\n') : err.data.message;
+        // Handle specific API error messages
+        const apiMessage = Array.isArray(err.data.message) ? err.data.message.join('\n') : err.data.message;
+        if (apiMessage.includes("Invalid credentials") || apiMessage.includes("Invalid email or password")) {
+          errorMessage = "Invalid email or password. Please try again.";
+        } else if (apiMessage.includes("User not found") || apiMessage.includes("User not registered")) {
+          errorMessage = "User not found. Please check your email or register a new account.";
+        } else {
+          errorMessage = apiMessage;
+        }
+      } else if (err.message.includes('network') || err.message.includes('Network')) {
+        errorMessage = "Internet connection required. Please check your network.";
+      } else {
+        errorMessage = err.message;
       }
+
       setError(errorMessage);
       Alert.alert('Login Error', errorMessage);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
@@ -79,7 +108,7 @@ const LoginScreen = ({ navigation }) => {
           <KeyboardAvoidingView // Wrap content that contains inputs
             style={styles.contentContainer}
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'} // 'padding' for iOS, 'height' for Android
-            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0} // Adjust offset as needed
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 10} // Adjust offset as needed
           >
             <View style={styles.textContainer}>
               <Text style={styles.title}>Welcome Owner</Text>
@@ -115,9 +144,9 @@ const LoginScreen = ({ navigation }) => {
                 <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
               </TouchableOpacity>
               {error ? <Text style={styles.errorText}>{error}</Text> : null}
-              <TouchableOpacity style={styles.loginButton} onPress={handleLoginPress} disabled={isLoading}>
+              <TouchableOpacity style={styles.loginButton} onPress={handleLoginPress} disabled={loading}>
                 <Text style={styles.loginButtonText}>
-                  {isLoading ? 'Logging in...' : 'Login'}
+                  {loading ? <ActivityIndicator color="#fff" /> : 'Login'}
                 </Text>
               </TouchableOpacity>
               {/* Register link */}

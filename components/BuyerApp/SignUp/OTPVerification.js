@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useRef } from "react"
+import React, { useState, useEffect } from "react"
 import {
   View,
   Text,
@@ -16,32 +16,22 @@ import {
   Image,
 } from "react-native"
 import { ArrowLeft, Check } from "lucide-react-native"
+import { useNavigation } from '@react-navigation/native'
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { verifyEmail, resendVerificationEmail } from "../../../services/api/auth/verifications/userVerification"
 
-const { width, height } = Dimensions.get("window")
+const { width } = Dimensions.get("window")
 
-const OTPVerificationScreen = ({ navigation, route }) => {
-  const [currentScreen, setCurrentScreen] = useState("verification") // 'verification' or 'success'
-  const [otpCode, setOtpCode] = useState(["", "", "", "", "", ""]) // Changed to 6 digits
-  const [activeIndex, setActiveIndex] = useState(0)
+const OTPVerificationScreen = ({ route }) => {
+  const navigation = useNavigation()
+  const [currentScreen, setCurrentScreen] = useState("verification")
+  const [verificationToken, setVerificationToken] = useState("") // Changed to single string
   const [loading, setLoading] = useState(false)
   const [resendLoading, setResendLoading] = useState(false)
   const [countdown, setCountdown] = useState(0)
   const [canResend, setCanResend] = useState(true)
 
-  // Get email from route params or AsyncStorage
   const [email, setEmail] = useState(route?.params?.email || "")
-
-  // Refs for OTP inputs
-  const otpInputRefs = useRef([])
-
-  // Initialize refs for the 6 OTP inputs (changed from 4 to 6)
-  useEffect(() => {
-    otpInputRefs.current = Array(6)
-      .fill()
-      .map((_, i) => otpInputRefs.current[i] || React.createRef())
-  }, [])
 
   // Get email from AsyncStorage if not provided in route params
   useEffect(() => {
@@ -52,12 +42,10 @@ const OTPVerificationScreen = ({ navigation, route }) => {
           if (storedEmail) {
             setEmail(storedEmail)
           } else {
-            // Set default email if no email is found
             setEmail("user@example.com")
           }
         } catch (error) {
           console.error("Error getting stored email:", error)
-          // Set default email on error
           setEmail("user@example.com")
         }
       }
@@ -78,33 +66,9 @@ const OTPVerificationScreen = ({ navigation, route }) => {
     return () => clearTimeout(timer)
   }, [countdown, canResend])
 
-  // Handle OTP input change
-  const handleOtpChange = (text, index) => {
-    // Only allow digits
-    if (!/^\d*$/.test(text)) return
-
-    const newOtp = [...otpCode]
-    newOtp[index] = text
-    setOtpCode(newOtp)
-
-    // Auto-focus next input if current input is filled
-    if (text.length === 1 && index < 5) {
-      otpInputRefs.current[index + 1]?.focus()
-      setActiveIndex(index + 1)
-    }
-  }
-
-  // Handle backspace and focus management
-  const handleKeyPress = (nativeEvent, index) => {
-    if (nativeEvent.key === "Backspace" && !otpCode[index] && index > 0) {
-      otpInputRefs.current[index - 1]?.focus()
-      setActiveIndex(index - 1)
-    }
-  }
-
-  // Handle input focus
-  const handleInputFocus = (index) => {
-    setActiveIndex(index)
+  // Handle back navigation
+  const handleBackPress = () => {
+    navigation.goBack()
   }
 
   // Handle resend code with real API integration
@@ -113,44 +77,35 @@ const OTPVerificationScreen = ({ navigation, route }) => {
 
     try {
       setResendLoading(true)
-
-      // Call the real API function with the email from route params
       await resendVerificationEmail(email)
-
-      // Start countdown
       setCountdown(60)
       setCanResend(false)
-
-      // Show success alert
-      Alert.alert("Code Sent", `A new verification code has been sent to ${email}. Please check your inbox.`, [
+      Alert.alert("Code Sent", `A new verification email has been sent to ${email}. Please check your inbox.`, [
         { text: "OK" },
       ])
     } catch (error) {
       console.error("Resend error:", error)
-
-      // Handle specific error cases
       let errorMessage = error.message || "Failed to resend code. Please try again."
-
       if (error.message.includes("not registered") || error.message.includes("not found")) {
         errorMessage = "Email not found. Please sign up again."
-
-        // Offer to navigate back to registration
         Alert.alert("Registration Required", errorMessage, [
           { text: "Cancel", style: "cancel" },
           {
             text: "Sign Up",
             onPress: () => {
-              // Navigate back to sign up screen
-              navigation.reset({
-                index: 0,
-                routes: [{ name: "SignUp" }], // Replace with your sign up route
-              })
+              if (navigation && navigation.reset) {
+                navigation.reset({
+                  index: 0,
+                  routes: [{ name: "RegisterOwner" }],
+                })
+              } else if (navigation && navigation.navigate) {
+                navigation.navigate("RegisterOwner")
+              }
             },
           },
         ])
         return
       }
-
       Alert.alert("Error", errorMessage)
     } finally {
       setResendLoading(false)
@@ -159,96 +114,111 @@ const OTPVerificationScreen = ({ navigation, route }) => {
 
   // Handle continue/verify with real API integration
   const handleContinue = async () => {
-    const code = otpCode.join("")
-
-    if (!email) {
-      Alert.alert("Error", "Email address is required for verification")
+    // Return early if the component is already loading
+    if (loading) return
+    if (!verificationToken) {
+      Alert.alert("Error", "Verification token is missing.")
       return
     }
 
     try {
       setLoading(true)
+      console.log("Verifying email with token:", verificationToken)
+      const result = await verifyEmail(verificationToken)
 
-      console.log("Verifying code:", code, "for email:", email)
+      if (!result.success) {
+        // Handle API-specific errors here, as the verifyEmail function
+        // returns a clear error message in the result object.
+        let errorMessage = result.error || "Unable to verify email. Please try again."
 
-      // Call the real API function to verify the 6-digit code with email
-      const { accessToken, refreshToken, accessExpiresIn, refreshExpiresIn } = await verifyEmail(code, email)
+        if (errorMessage.includes("invalid or expired") || errorMessage.includes("not found")) {
+          errorMessage = "Invalid or expired token. Please request a new one."
+        }
 
-      console.log("Email verification successful for:", email)
-
-      // Store tokens securely
-      await AsyncStorage.multiSet([
-        ["accessToken", accessToken],
-        ["refreshToken", refreshToken],
-        ["accessExpiresIn", accessExpiresIn.toString()],
-        ["refreshExpiresIn", refreshExpiresIn.toString()],
-        ["verifiedEmail", email], // Store the verified email
-      ])
-
-      // Clear the pending verification email
-      await AsyncStorage.removeItem("pendingVerificationEmail")
-
-      // Move to success screen
-      setCurrentScreen("success")
-    } catch (error) {
-      console.error("Verification error:", error)
-
-      // Handle specific error cases
-      let errorMessage = error.message || "Invalid verification code. Please try again."
-
-      if (error.message.includes("Registration not found") || error.message.includes("not registered")) {
-        errorMessage = "Registration not found. Please sign up again."
-
-        // Offer to navigate back to registration
-        Alert.alert("Registration Required", errorMessage, [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Sign Up",
-            onPress: () => {
-              // Navigate back to sign up screen
-              navigation.reset({
-                index: 0,
-                routes: [{ name: "RegisterOwner" }], // Replace with your sign up route
-              })
+        // Check for the specific 'not registered' error
+        if (errorMessage.includes("Registration not found")) {
+          errorMessage = "Registration not found. Please sign up again."
+          Alert.alert("Registration Required", errorMessage, [
+            {
+              text: "Cancel",
+              style: "cancel"
             },
-          },
-        ])
+            {
+              text: "Sign Up",
+              onPress: () => {
+                if (navigation?.reset) {
+                  navigation.reset({
+                    index: 0,
+                    routes: [{
+                      name: "RegisterOwner"
+                    }],
+                  })
+                } else if (navigation?.navigate) {
+                  navigation.navigate("RegisterOwner")
+                }
+              },
+            },
+          ])
+          return // Return to prevent the second generic alert
+        }
+
+        Alert.alert("Verification Error", errorMessage)
         return
       }
 
-      Alert.alert("Verification Error", errorMessage)
+      // Success block
+      const {
+        access_token,
+        refresh_token,
+        expires_in_access,
+        expires_in_refresh
+      } = result.data.data
 
-      // Clear the OTP inputs on error
-      setOtpCode(["", "", "", "", "", ""])
-      setActiveIndex(0)
-      otpInputRefs.current[0]?.focus()
+      console.log("✅ Email verification successful")
+
+      // Store all tokens and the verified email
+      await AsyncStorage.multiSet([
+        ["accessToken", access_token],
+        ["refreshToken", refresh_token],
+        ["accessExpiresIn", expires_in_access.toString()],
+        ["refreshExpiresIn", expires_in_refresh.toString()],
+        ["verifiedEmail", email.trim().toLowerCase()],
+      ])
+
+      // Remove the temporary key and set the screen
+      await AsyncStorage.removeItem("pendingVerificationEmail")
+      setCurrentScreen("success")
+
+    } catch (error) {
+      // This catch block is for unexpected, non-API-related errors
+      console.error("An unexpected error occurred during verification:", error)
+      Alert.alert("Verification Error", "An unexpected error occurred. Please try again.")
+
     } finally {
       setLoading(false)
     }
   }
 
+
   // Handle success continue
   const handleSuccessContinue = () => {
-    // Navigate to next screen (replace with your actual navigation)
     console.log("Navigating to main app...")
-
-    // Example navigation - replace with your actual route
-    if (navigation) {
+    if (navigation && navigation.reset) {
       navigation.reset({
         index: 0,
-        routes: [{ name: "BuyerLogin" }], // Replace with your main app route
+        routes: [{ name: "BuyerLogin" }],
       })
+    } else if (navigation && navigation.navigate) {
+      navigation.navigate("BuyerLogin")
     } else {
       Alert.alert("Success", "Verification completed!")
     }
   }
 
-  // Render OTP Verification Screen
   const renderVerificationScreen = () => (
     <SafeAreaView style={styles.safeArea}>
-      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation?.goBack()}>
+        <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
           <ArrowLeft size={24} color="#333" />
         </TouchableOpacity>
       </View>
@@ -258,62 +228,30 @@ const OTPVerificationScreen = ({ navigation, route }) => {
         style={styles.container}
         keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
       >
-        {/* Content */}
         <View style={styles.content}>
-          {/* Custom Illustration from Assets */}
           <View style={styles.illustrationContainer}>
             <Image
-              source={require("./assets/verify.png")} // Replace with your actual image path
+              source={require("../../../assets/verify.png")}
               style={styles.illustrationImage}
               resizeMode="contain"
             />
           </View>
-
-          {/* Title and Subtitle */}
-          <Text style={styles.title}>OTP Verification</Text>
-          <Text style={styles.subtitle}>We have sent the verification code to your email address</Text>
+          <Text style={styles.title}>Token Verification</Text>
+          <Text style={styles.subtitle}>Please enter the verification token we sent to your email address</Text>
           {email && <Text style={styles.emailText}>{email}</Text>}
 
-          {/* Registration Issue Warning */}
-          <View style={styles.warningContainer}>
-            <Text style={styles.warningText}>If you're having trouble, you may need to sign up again.</Text>
-            <TouchableOpacity
-              style={styles.signUpAgainButton}
-              onPress={() => {
-                navigation.reset({
-                  index: 0,
-                  routes: [{ name: "SignUp" }], // Replace with your sign up route
-                })
-              }}
-            >
-              <Text style={styles.signUpAgainText}>Sign Up Again</Text>
-            </TouchableOpacity>
+          <View style={styles.inputContainer}>
+            <TextInput
+              style={styles.textInput}
+              placeholder="Enter verification token"
+              value={verificationToken}
+              onChangeText={setVerificationToken}
+              autoCapitalize="none"
+              keyboardType="default"
+              placeholderTextColor="#999"
+            />
           </View>
 
-          {/* OTP Input - Updated for 6 digits */}
-          <View style={styles.otpContainer}>
-            {otpCode.map((digit, index) => (
-              <TextInput
-                key={index}
-                ref={(el) => (otpInputRefs.current[index] = el)}
-                style={[
-                  styles.otpInput,
-                  activeIndex === index && styles.otpInputActive,
-                  digit && styles.otpInputFilled,
-                ]}
-                value={digit}
-                onChangeText={(text) => handleOtpChange(text, index)}
-                onKeyPress={({ nativeEvent }) => handleKeyPress(nativeEvent, index)}
-                onFocus={() => handleInputFocus(index)}
-                keyboardType="default" // Changed from "number-pad" to "default"
-                maxLength={1}
-                autoFocus={index === 0}
-                selectTextOnFocus
-              />
-            ))}
-          </View>
-
-          {/* Resend Code - Now inside KeyboardAvoidingView */}
           <View style={styles.resendContainer}>
             {canResend ? (
               <TouchableOpacity
@@ -332,12 +270,11 @@ const OTPVerificationScreen = ({ navigation, route }) => {
             )}
           </View>
 
-          {/* Continue Button - Now inside KeyboardAvoidingView */}
           <View style={styles.buttonContainer}>
             <TouchableOpacity
-              style={[styles.continueButton, loading && styles.continueButtonDisabled]}
+              style={[styles.continueButton, loading || !verificationToken.trim() ? styles.continueButtonDisabled : {}]}
               onPress={handleContinue}
-              disabled={loading}
+              disabled={loading || !verificationToken.trim()}
             >
               {loading ? (
                 <ActivityIndicator size="small" color="#fff" />
@@ -351,22 +288,16 @@ const OTPVerificationScreen = ({ navigation, route }) => {
     </SafeAreaView>
   )
 
-  // Render Success Screen
   const renderSuccessScreen = () => (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.successContainer}>
-        {/* Success Icon */}
         <View style={styles.successIconContainer}>
           <View style={styles.successIcon}>
             <Check size={40} color="#8A3FFC" />
           </View>
         </View>
-
-        {/* Success Text */}
         <Text style={styles.successTitle}>Success!</Text>
-        <Text style={styles.successSubtitle}>Congratulations! You have been successfully authenticated</Text>
-
-        {/* Continue Button */}
+        <Text style={styles.successSubtitle}>Congratulations! You have been successfully authenticated.</Text>
         <View style={styles.successButtonContainer}>
           <TouchableOpacity style={styles.continueButton} onPress={handleSuccessContinue}>
             <Text style={styles.continueButtonText}>Continue</Text>
@@ -413,22 +344,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-
-  // Custom illustration styles
   illustrationContainer: {
     alignItems: "center",
     marginBottom: 40,
     width: "100%",
-    height: 200, // Adjust based on your image size
+    height: 200,
   },
   illustrationImage: {
     width: "80%",
     height: "100%",
-    maxWidth: 300, // Adjust based on your image
-    maxHeight: 200, // Adjust based on your image
+    maxWidth: 300,
+    maxHeight: 200,
   },
-
-  // Text styles
   title: {
     fontSize: 28,
     fontWeight: "bold",
@@ -451,69 +378,24 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     textAlign: "center",
   },
-
-  // Warning container styles
-  warningContainer: {
-    backgroundColor: "#FFF3CD",
-    borderColor: "#FFEAA7",
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 20,
+  inputContainer: {
     width: "100%",
-    alignItems: "center",
-  },
-  warningText: {
-    fontSize: 14,
-    color: "#856404",
-    textAlign: "center",
-    marginBottom: 8,
-  },
-  signUpAgainButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-  },
-  signUpAgainText: {
-    fontSize: 14,
-    color: "#8A3FFC",
-    fontWeight: "500",
-    textDecorationLine: "underline",
-  },
-
-  // OTP Input styles - Updated for 6 digits
-  otpContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    width: "95%", // Increased width to accommodate 6 inputs
     marginBottom: 30,
     paddingHorizontal: 5,
   },
-  otpInput: {
-    width: 50, // Reduced width to fit 6 inputs
+  textInput: {
     height: 60,
+    width: "100%",
     borderWidth: 2,
     borderColor: "#E0E0E0",
     borderRadius: 12,
     textAlign: "center",
-    fontSize: 24,
+    fontSize: 16,
     fontWeight: "600",
     color: "#333",
     backgroundColor: "#fff",
-    marginHorizontal: 2, // Added margin between inputs
+    paddingHorizontal: 15,
   },
-  otpInputActive: {
-    borderColor: "#8A3FFC",
-    shadowColor: "#8A3FFC",
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  otpInputFilled: {
-    backgroundColor: "#F8F6FF",
-  },
-
-  // Resend styles
   resendContainer: {
     alignItems: "center",
     marginBottom: 30,
@@ -534,8 +416,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#999",
   },
-
-  // Button styles
   buttonContainer: {
     width: "100%",
     paddingHorizontal: 0,
@@ -557,8 +437,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
   },
-
-  // Success screen styles
   successContainer: {
     flex: 1,
     alignItems: "center",
