@@ -108,6 +108,7 @@ const SignUpScreen = ({ navigation }) => {
 
   // Handle sign up with integrated API
   const handleSignUp = async () => {
+    // Front-end validation
     setFormSubmitted(true)
     setPasswordTouched(true)
     setConfirmPasswordTouched(true)
@@ -123,6 +124,7 @@ const SignUpScreen = ({ navigation }) => {
 
     setLoading(true)
     try {
+      // Prepare user data for API
       const userData = {
         email: email.trim().toLowerCase(),
         password,
@@ -134,51 +136,162 @@ const SignUpScreen = ({ navigation }) => {
 
       console.log("Registering user with data:", {
         ...userData,
-        password: "[HIDDEN]",
+        password: "[HIDDEN]", // Don't log passwords
       })
 
+      // Call the API
       const response = await registerUser(userData)
 
       console.log("Registration API response:", response)
 
-      if (response.statusCode === 0 && response.message === "Registration successful") {
-        Alert.alert(
-          "Registration Successful",
-          "Your account has been created. Please check your email for a verification link."
-        )
+      // Handle successful registration - look for email token
+      let emailToken = null
+      let user = null
 
-        await AsyncStorage.setItem("pendingVerificationEmail", email.trim().toLowerCase())
+      // Try different possible response structures for email tokens
+      if (response) {
+        // Look for common token field names that might contain the email
+        const possibleTokenFields = [
+          "token",
+          "email_token",
+          "verification_token",
+          "emailToken",
+          "verificationToken",
+          "email",
+          "userEmail",
+          "user_email",
+        ]
 
-        navigation.reset({
-          index: 0,
-          routes: [{
-            name: "BuyerVerification",
-            params: {
-              email: email.trim().toLowerCase(),
-            },
-          }, ],
-        })
+        // Check direct response
+        for (const field of possibleTokenFields) {
+          if (response[field] && isValidEmailToken(response[field])) {
+            emailToken = response[field]
+            break
+          }
+        }
 
-      } else {
-        console.error("API returned an unexpected success response:", response)
-        Alert.alert(
-          "Registration Error",
-          "An unexpected response was received. Please try again or contact support."
-        )
+        // Check nested data structure
+        if (!emailToken && response.data) {
+          for (const field of possibleTokenFields) {
+            if (response.data[field] && isValidEmailToken(response.data[field])) {
+              emailToken = response.data[field]
+              break
+            }
+          }
+        }
+
+        // Check auth object
+        if (!emailToken && response.auth) {
+          for (const field of possibleTokenFields) {
+            if (response.auth[field] && isValidEmailToken(response.auth[field])) {
+              emailToken = response.auth[field]
+              break
+            }
+          }
+        }
+
+        // Check result object
+        if (!emailToken && response.result) {
+          for (const field of possibleTokenFields) {
+            if (response.result[field] && isValidEmailToken(response.result[field])) {
+              emailToken = response.result[field]
+              break
+            }
+          }
+        }
+
+        // Get user data
+        user = response.user || response.data?.user || response.auth?.user || response.result?.user || response
       }
 
-    } catch (error) {
-      console.error("Registration error:", error.response ? error.response.data : error.message)
+      console.log(
+        "Extracted email token:",
+        emailToken ? `Valid email token: ${emailToken}` : "No valid email token found",
+      )
+      console.log("Extracted user:", user ? "User data found" : "No user data found")
 
-      let errorMessage = "Registration failed. Please try again."
-      if (error.response && error.response.data && error.response.data.error) {
-        errorMessage = error.response.data.error
-      } else if (error.message.includes("Network")) {
+      // Log all potential token fields for debugging
+      console.log("All response fields:", Object.keys(response || {}))
+      if (response?.data) console.log("Response.data fields:", Object.keys(response.data))
+      if (response?.auth) console.log("Response.auth fields:", Object.keys(response.auth))
+
+      if (emailToken && isValidEmailToken(emailToken)) {
+        // Store the email token and user data
+        await AsyncStorage.multiSet([
+          ["@email_token", emailToken.trim()], // Store as email token instead of auth token
+          ["@user_email", email.trim().toLowerCase()],
+          ["@verification_email", emailToken.trim()], // Email to verify
+          ["@user_role", "buyer"],
+          ["@user_profile", JSON.stringify(user || {})],
+          ["pendingVerificationEmail", emailToken.trim()], // For OTP verification
+        ])
+
+        console.log("Email token stored successfully, navigating to login...")
+
+        // Navigate to verification screen with the email token
+        navigation.reset({
+          index: 0,
+          routes: [
+            {
+              name: "BuyerVerification", // Replace with your actual verification screen name
+              params: {
+                email: emailToken.trim(), // Use the email token for verification
+              },
+            },
+          ],
+        })
+      } else {
+        // Log detailed debugging information
+        console.error("No valid email token found!")
+        console.error("Response structure:", JSON.stringify(response, null, 2))
+
+        // Check if registration was successful but no email token provided
+        if (response && (response.success || response.message?.includes("success"))) {
+          Alert.alert(
+            "Registration Successful",
+            "Your account has been created successfully. Please proceed to verify your email.",
+            [
+              {
+                text: "Continue",
+                onPress: () => {
+                  // Navigate to verification with the original email
+                  AsyncStorage.setItem("pendingVerificationEmail", email.trim().toLowerCase())
+                  navigation.reset({
+                    index: 0,
+                    routes: [
+                      {
+                        name: "BuyerLogin",
+                      },
+                    ],
+                  })
+                },
+              },
+            ],
+          )
+        } else {
+          throw new Error("Registration completed but no email verification token was provided by the server.")
+        }
+      }
+    } catch (error) {
+      console.error("Registration error:", error)
+
+      // Handle different types of errors
+      let errorMessage = error.message || "Registration failed. Please try again."
+
+      // Handle specific error cases
+      if (error.message === "Network connection failed") {
         errorMessage = "Please check your internet connection and try again."
+      } else if (error.message.includes("Email already exists")) {
+        errorMessage = "This email is already registered. Please use a different email or try logging in."
+      } else if (error.message.includes("Invalid email")) {
+        errorMessage = "Please enter a valid email address."
+      } else if (error.message.includes("Password")) {
+        errorMessage = "Password does not meet requirements. Please check and try again."
       }
 
       Alert.alert("Registration Error", errorMessage)
 
+      // Clear sensitive fields on error
       setPassword("")
       setConfirmPassword("")
       setPasswordTouched(false)

@@ -138,99 +138,88 @@ const AuthScreens = ({ navigation }) => {
         nationality: nationality.trim(),
         dateOfBirth: dateOfBirth.trim(),
         ghanaCardNumber: ghanaCardNumber.trim(),
-        role: "seller", // Ensure the role is 'seller' for this flow
+        role,
       }
 
-      // Call the createSeller function with the complete userData object
-      const response = await createSeller(userData)
+      await registerSeller(userData)
+      console.log("Registration successful for:", email)
 
-      // Check for the specific success message from the API documentation
-      if (response && response.statusCode === 0 && response.message === "User registration successful") {
-        console.log("Registration successful for:", email)
-        await AsyncStorage.setItem("pendingVerificationEmail", email)
-        setCurrentScreen("verifyCode")
-      } else {
-         console.error("API returned an unexpected success response:", response)
-         let errorMessage = "Registration failed. Please try again."
-         if (response && response.error) {
-           errorMessage = response.error
-         }
-         Alert.alert("Registration Error", errorMessage)
-      }
-
+      await AsyncStorage.setItem("pendingVerificationEmail", email)
+      setCurrentScreen("verifyCode")
     } catch (error) {
-      console.error("Registration error:", error.response ? error.response.data : error.message)
+      console.error("Registration error:", error)
       let errorMessage = "Registration failed. Please try again."
-
-      if (error.response && error.response.data && error.response.data.error) {
-         errorMessage = error.response.data.error
-      } else if (error.message.includes("Network")) {
+      if (error.message === "Email already registered") {
+        errorMessage = "This email is already registered. Please login instead."
+      } else if (error.message === "Network connection failed") {
         errorMessage = "Unable to connect. Please check your internet connection."
       }
-
       Alert.alert("Registration Error", errorMessage)
     } finally {
       setLoading(false)
     }
   }
 
-
   // Function to handle verify button press
   const handleVerify = async () => {
-    // Return early if the component is already loading
-    if (loading) return;
+    if (loading) return
 
-    // Check if a token is present
     if (!verificationToken) {
-      Alert.alert("Error", "Verification token is missing");
-      return;
+      Alert.alert("Error", "Verification token is missing")
+      return
     }
 
     try {
-      setLoading(true);
+      setLoading(true)
 
-      console.log("Verifying email with token:", verificationToken);
+      console.log("Verifying email with token:", verificationToken)
 
-      // Call the verifyEmail function from your API file
-      const result = await verifyEmail(verificationToken);
+      const result = await verifyEmail(verificationToken)
 
-      // Check if the result from the API call indicates a success
-      if (result.success) {
-        // Destructure the tokens from the nested data property
-        const { access_token, refresh_token } = result.data.data;
-
-        console.log("✅ Email verification successful");
-
-        // Store tokens for future authenticated requests
-        await AsyncStorage.multiSet([
-          ["accessToken", access_token],
-          ["refreshToken", refresh_token],
-        ]);
-
-        // Display a success message and navigate to the next screen
-        Alert.alert(
-          "Registration Complete",
-          "An email will be sent to you after your account is approved.",
-          [{
-            text: "Continue",
-            onPress: () => navigation.navigate("OwnerLogin"),
-          }, ],
-        );
-
-      } else {
-        // Display the specific error message returned by the API function
-        Alert.alert("Verification Error", result.error || "Unable to verify email. Please try again.");
+      if (!result.success) {
+        Alert.alert("Verification Error", result.error || "Unable to verify email. Please try again.")
+        return
       }
 
+      const { access_token, refresh_token } = result.data.data
+
+      console.log("✅ Email verification successful")
+
+      await AsyncStorage.multiSet([
+        ["accessToken", access_token],
+        ["refreshToken", refresh_token],
+      ])
+
+      Alert.alert(
+        "Registration Complete",
+        "An email will be sent to you after your account is approved.",
+        [
+          {
+            text: "Continue",
+            onPress: () => navigation.navigate("OwnerLogin"),
+          },
+        ]
+      )
+
     } catch (error) {
-      // This catch block will only execute for unexpected, unhandled errors
-      console.error("An unexpected error occurred during verification:", error);
-      Alert.alert("Verification Error", "An unexpected error occurred. Please try again.");
+      console.error("Verification failed:", error)
+
+      let errorMessage = "Verification failed. Please try again."
+
+      if (error?.message?.includes("Invalid or expired token")) {
+        errorMessage = "Invalid or expired verification token."
+      } else if (error?.message?.includes("Verification token not found")) {
+        errorMessage = "This verification token is not recognized."
+      } else if (error?.message === "Network connection failed") {
+        errorMessage = "Unable to connect. Please check your internet."
+      }
+
+      Alert.alert("Verification Error", errorMessage)
 
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
 
   const handleTokenResend = async () => {
