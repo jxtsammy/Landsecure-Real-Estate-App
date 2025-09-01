@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const API = axios.create({
   baseURL: 'https://land-secure-backend.onrender.com',
-  timeout: 20000, // Reduced to 30 seconds for most requests
+  timeout: 50000, // Reduced to 30 seconds for most requests
   headers: {
     'Accept': 'application/json',
     'Content-Type': 'application/json'

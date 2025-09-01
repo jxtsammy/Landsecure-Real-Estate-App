@@ -16,17 +16,29 @@ import {
   Alert,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
-import { Search, MapPin, Trees, Mountain, Landmark, Wheat, Palmtree, Ruler, X, Frown, Filter } from "lucide-react-native" // Added Frown and Filter icons
+import { Search, MapPin, Trees, Mountain, Landmark, Wheat, Palmtree, Ruler, X, Frown, Filter } from "lucide-react-native" // Added Frown and Filter icons 
 import { StatusBar } from "react-native"
 import { useNavigation } from "@react-navigation/native"
 import { getPropertyDetails } from '../../../services/api/propertyManagment/getPropertyDetails';
+import { getProperties } from "../../../services/api/propertyManagment/getProperties"
 
 const { width } = Dimensions.get("window")
+
+const fallbackImages = [
+  "https://images.unsplash.com/photo-1500382017468-9049fed747ef?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1470&q=80",
+  "https://images.unsplash.com/photo-1501594907352-04cda38ebc29?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1470&q=80"
+];
 
 // PropertyCard component (remains largely the same)
 const PropertyCard = ({ property }) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const navigation = useNavigation()
+
+  // Use fallback images if property.images is missing or empty
+  const images =
+    Array.isArray(property.images) && property.images.length > 0
+      ? property.images
+      : fallbackImages
 
   const handleScroll = (event) => {
     const contentOffset = event.nativeEvent.contentOffset.x
@@ -45,7 +57,7 @@ const PropertyCard = ({ property }) => {
     >
       <View style={styles.imageContainer}>
         <FlatList
-          data={property.images}
+          data={images}
           horizontal
           pagingEnabled
           showsHorizontalScrollIndicator={false}
@@ -55,7 +67,7 @@ const PropertyCard = ({ property }) => {
         />
         {/* Image pagination dots */}
         <View style={styles.paginationDots}>
-          {property.images.map((_, index) => (
+          {images.map((_, index) => (
             <View
               key={index}
               style={[styles.paginationDot, index === currentImageIndex && styles.paginationDotActive]}
@@ -76,18 +88,33 @@ const PropertyCard = ({ property }) => {
         <Text style={styles.propertyLocation}>{property.location}</Text>
         {/* Coordinates display */}
         <Text style={styles.propertyCoordinates}>
-          {property.coordinates.lat.toFixed(4)}, {property.coordinates.lng.toFixed(4)}
+          {(() => {
+    if (typeof property.coordinates === "string") {
+      const [lat, lng] = property.coordinates.split(",").map(Number);
+      if (!isNaN(lat) && !isNaN(lng)) {
+        return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+      }
+    } else if (
+      property.coordinates &&
+      typeof property.coordinates.lat === "number" &&
+      typeof property.coordinates.lng === "number"
+    ) {
+      return `${property.coordinates.lat.toFixed(4)}, ${property.coordinates.lng.toFixed(4)}`;
+    }
+    return "N/A";
+  })()}
         </Text>
         {/* Price and Schedule Tour button in the same row */}
         <View style={styles.priceActionRow}>
           <Text style={styles.propertyPrice}>{property.price}</Text>
           <TouchableOpacity
             style={styles.scheduleButton}
-            onPress={() =>
+            onPress={() => {
+              console.log("Schedule Tour pressed for property:", property);
               navigation.navigate("PropertyDetails", {
                 property: property,
-              })
-            }
+              });
+            }}
           >
             <Text style={styles.tourText}>View Details</Text>
           </TouchableOpacity>
@@ -270,7 +297,8 @@ const HomeScreen = ({ navigation }) => {
     const fetchProperties = async () => {
       setIsLoading(true);
       try {
-        const data = await getPropertyDetails();
+        const data = await getProperties();
+        console.log("Fetched properties:", data);
         setAllProperties(data);
       } catch (error) {
         Alert.alert("Error", "Failed to fetch properties. Please try again later.");
@@ -319,18 +347,30 @@ const HomeScreen = ({ navigation }) => {
       const query = searchQuery.toLowerCase().trim()
       results = results.filter(
         (property) =>
-          property.location.toLowerCase().includes(query) ||
-          property.type.toLowerCase().includes(query) ||
-          property.price.toLowerCase().includes(query) ||
-          property.size.toLowerCase().includes(query) ||
-          property.sizeUnit.toLowerCase().includes(query) ||
+          (property.location && property.location.toLowerCase().includes(query)) ||
+          (property.type && property.type.toLowerCase().includes(query)) ||
+          (property.price && property.price.toLowerCase().includes(query)) ||
+          (property.size && property.size.toLowerCase().includes(query)) ||
+          (property.sizeUnit && property.sizeUnit.toLowerCase().includes(query)) ||
           (query.includes(",") &&
             (() => {
-              const [latStr, lngStr] = query.split(",").map((s) => s.trim())
+              const [latStr, lngStr] = query.split(",")?.map((s) => s.trim())
               const lat = Number.parseFloat(latStr)
               const lng = Number.parseFloat(lngStr)
-              if (!isNaN(lat) && !isNaN(lng)) {
-                return calculateDistance(lat, lng, property.coordinates.lat, property.coordinates.lng) <= 50
+              // Defensive: parse coordinates string if needed
+              let propLat, propLng
+              if (typeof property.coordinates === "string") {
+                [propLat, propLng] = property.coordinates.split(",").map(Number)
+              } else if (
+                property.coordinates &&
+                typeof property.coordinates.lat === "number" &&
+                typeof property.coordinates.lng === "number"
+              ) {
+                propLat = property.coordinates.lat
+                propLng = property.coordinates.lng
+              }
+              if (!isNaN(lat) && !isNaN(lng) && !isNaN(propLat) && !isNaN(propLng)) {
+                return calculateDistance(lat, lng, propLat, propLng) <= 50
               }
               return false
             })()),
@@ -462,7 +502,7 @@ const HomeScreen = ({ navigation }) => {
           {isLoading ? (
             renderLoadingBubbles()
           ) : filteredProperties.length > 0 ? (
-            filteredProperties.map((property) => (
+            filteredProperties?.map((property) => (
               <PropertyCard key={property.id} property={property} navigation={navigation} />
             ))
           ) : (

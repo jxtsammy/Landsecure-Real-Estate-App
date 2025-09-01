@@ -16,31 +16,9 @@ import {
   Palmtree,
 } from "lucide-react-native"
 import MapView, { Marker, Polyline } from "react-native-maps"
+import { useRoute } from "@react-navigation/native"
 
 const { width } = Dimensions.get("window")
-
-// Using the property data from the shared file
-const property = {
-  id: "1",
-  images: [
-    "https://images.unsplash.com/photo-1500382017468-9049fed747ef?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1470&q=80",
-    "https://images.unsplash.com/photo-1501594907352-04cda38ebc29?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1470&q=80",
-  ],
-  type: "Residential Plot",
-  size: "0.5",
-  sizeUnit: "acre",
-  dimensions: "100 x 200 ft",
-  location: "Edgewood, NM 87015",
-  price: "$95,000",
-  favorite: false,
-  coordinates: { lat: 35.0614, lng: -106.1911 },
-  description:
-    "Beautiful residential plot with stunning mountain views, perfect for building your dream home. This 0.5-acre property offers privacy and tranquility while still being just a short drive from amenities. The land has been surveyed and has utilities available at the lot line. Zoning allows for single-family homes with the possibility of a guest house. The gentle slope provides excellent drainage and potential for a walkout basement.",
-  features: ["Mountain views", "Utilities available", "Paved road access", "No HOA restrictions", "Buildable lot"],
-  zoning: "Residential R-1",
-  utilities: "Water, electricity, and gas available at lot line",
-  access: "Paved road access via Mountain View Drive",
-}
 
 // Create a property boundary polygon around the property location
 const createPropertyBoundary = (center, size = 0.001) => {
@@ -53,21 +31,31 @@ const createPropertyBoundary = (center, size = 0.001) => {
   ]
 }
 
-const PropertyDetails = ({navigation}) => {
+const PropertyDetails = ({ navigation }) => {
+  const route = useRoute()
+  const { property } = route.params
+
   const [activeImageIndex, setActiveImageIndex] = useState(0)
   const [isFavorite, setIsFavorite] = useState(property.favorite)
 
+  // Defensive: parse coordinates if string
+  let coordinates = property.coordinates
+  if (typeof coordinates === "string") {
+    const [lat, lng] = coordinates.split(",").map(Number)
+    coordinates = { lat, lng }
+  }
+
   // Property location coordinates
   const propertyLocation = {
-    latitude: property.coordinates.lat,
-    longitude: property.coordinates.lng,
+    latitude: coordinates.lat,
+    longitude: coordinates.lng,
     latitudeDelta: 0.01,
     longitudeDelta: 0.01,
   }
 
   // Property boundary coordinates
   const boundarySize = 0.001 // Adjust based on property size
-  const polylineCoordinates = createPropertyBoundary(property.coordinates, boundarySize)
+  const polylineCoordinates = createPropertyBoundary(coordinates, boundarySize)
 
   const renderImageItem = ({ item, index }) => (
     <TouchableOpacity
@@ -80,13 +68,26 @@ const PropertyDetails = ({navigation}) => {
 
   // Get the appropriate icon based on property type
   const getPropertyTypeIcon = () => {
-    const type = property.type.toLowerCase()
+    const type = property.type?.toLowerCase() || ""
     if (type.includes("residential")) return <Landmark size={20} color="#666" />
     if (type.includes("agricultural")) return <Wheat size={20} color="#666" />
     if (type.includes("commercial")) return <Landmark size={20} color="#666" />
     if (type.includes("beachfront")) return <Palmtree size={20} color="#666" />
     if (type.includes("mountain")) return <Mountain size={20} color="#666" />
     return <Landmark size={20} color="#666" />
+  }
+
+  // Add this function to handle image fallback if property.images is missing or empty
+  const getPropertyImages = () => {
+    // If property.images exists and is a non-empty array, return it
+    if (Array.isArray(property.images) && property.images.length > 0) {
+      return property.images
+    }
+    // Otherwise, return a placeholder image array (can be replaced later)
+    return [
+      "https://images.unsplash.com/photo-1500382017468-9049fed747ef?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1470&q=80",
+    "https://images.unsplash.com/photo-1501594907352-04cda38ebc29?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1470&q=80"
+    ]
   }
 
   return (
@@ -103,11 +104,13 @@ const PropertyDetails = ({navigation}) => {
 
         {/* Main property image */}
         <FlatList
-          data={property.images}
+          data={getPropertyImages()}
           horizontal
           pagingEnabled
           showsHorizontalScrollIndicator={false}
-          renderItem={({ item }) => <Image source={{ uri: item }} style={styles.mainImage} resizeMode="cover" />}
+          renderItem={({ item }) => (
+            <Image source={{ uri: item }} style={styles.mainImage} resizeMode="cover" />
+          )}
           keyExtractor={(_, index) => index.toString()}
           onMomentumScrollEnd={(e) => {
             const contentOffset = e.nativeEvent.contentOffset.x
@@ -118,7 +121,7 @@ const PropertyDetails = ({navigation}) => {
 
         {/* Image pagination dots */}
         <View style={styles.paginationDots}>
-          {property.images.map((_, index) => (
+          {getPropertyImages().map((_, index) => (
             <View
               key={index}
               style={[styles.paginationDot, index === activeImageIndex && styles.paginationDotActive]}
@@ -128,7 +131,7 @@ const PropertyDetails = ({navigation}) => {
 
         {/* Image thumbnails */}
         <FlatList
-          data={property.images}
+          data={getPropertyImages()}
           renderItem={renderImageItem}
           keyExtractor={(_, index) => index.toString()}
           horizontal
@@ -166,7 +169,7 @@ const PropertyDetails = ({navigation}) => {
         <View style={styles.addressContainer}>
           <Text style={styles.addressTitle}>{property.location}</Text>
           <Text style={styles.addressSubtitle}>
-            Coordinates: {property.coordinates.lat.toFixed(4)}, {property.coordinates.lng.toFixed(4)}
+            Coordinates: {coordinates.lat?.toFixed(4)}, {coordinates.lng?.toFixed(4)}
           </Text>
         </View>
 
@@ -222,12 +225,19 @@ const PropertyDetails = ({navigation}) => {
         <View style={styles.sectionContainer}>
           <Text style={styles.sectionTitle}>Features</Text>
           <View style={styles.featuresList}>
-            {property.features.map((feature, index) => (
-              <View key={index} style={styles.featureItem}>
-                <View style={styles.featureBullet} />
-                <Text style={styles.featureText}>{feature}</Text>
-              </View>
-            ))}
+            {Array.isArray(property.features)
+              ? property.features.map((feature, index) => (
+                  <View key={index} style={styles.featureItem}>
+                    <View style={styles.featureBullet} />
+                    <Text style={styles.featureText}>{feature}</Text>
+                  </View>
+                ))
+              : typeof property.features === "string" && property.features.split(",").map((feature, index) => (
+                  <View key={index} style={styles.featureItem}>
+                    <View style={styles.featureBullet} />
+                    <Text style={styles.featureText}>{feature.trim()}</Text>
+                  </View>
+                ))}
           </View>
         </View>
 

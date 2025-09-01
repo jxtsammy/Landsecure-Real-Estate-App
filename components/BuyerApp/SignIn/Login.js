@@ -47,10 +47,15 @@ const LoginScreen = ({ navigation }) => {
 
     setLoading(true);
     try {
-      const { token, user } = await loginBuyer(email, password);
+      const res = await loginBuyer(email, password);
+      console.log("Login response:", res);
+      const tokens = res.tokens;
       // Store authentication data
       await AsyncStorage.multiSet([
-        ['@auth_token', token],
+        ["accessToken", tokens.access_token],
+        ["refreshToken", tokens.refresh_token],
+        ["accessExpiresIn", tokens.expires_in_access],
+        ["refreshExpiresIn", tokens.expires_in_refresh],
         ['@user_role', 'buyer'],
         ['@user_email', email]
       ]);

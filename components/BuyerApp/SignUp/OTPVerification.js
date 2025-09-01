@@ -123,8 +123,12 @@ const OTPVerificationScreen = ({ route }) => {
 
     try {
       setLoading(true)
-      console.log("Verifying email with token:", verificationToken)
-      const result = await verifyEmail(verificationToken)
+      const newData = {
+        email: email.trim(),
+        otp: verificationToken.trim(),
+      }
+      console.log("Verifying email with:", newData)
+      const result = await verifyEmail(newData)
 
       if (!result.success) {
         // Handle API-specific errors here, as the verifyEmail function
@@ -172,7 +176,7 @@ const OTPVerificationScreen = ({ route }) => {
         refresh_token,
         expires_in_access,
         expires_in_refresh
-      } = result.data.data
+      } = result.data
 
       console.log("✅ Email verification successful")
 
@@ -180,9 +184,10 @@ const OTPVerificationScreen = ({ route }) => {
       await AsyncStorage.multiSet([
         ["accessToken", access_token],
         ["refreshToken", refresh_token],
-        ["accessExpiresIn", expires_in_access.toString()],
-        ["refreshExpiresIn", expires_in_refresh.toString()],
-        ["verifiedEmail", email.trim().toLowerCase()],
+        ["accessExpiresIn", expires_in_access],
+        ["refreshExpiresIn", expires_in_refresh],
+        ["verifiedEmail", email.trim()],
+        ["user",result.data.user]
       ])
 
       // Remove the temporary key and set the screen

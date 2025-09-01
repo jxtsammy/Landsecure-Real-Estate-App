@@ -2,20 +2,25 @@ import API from "../../config";
 
 export const verifyEmail = async (token) => {
   try {
-    const response = await API.get("/auth/verify-email", {
-      params: {
-        token
-      },
-      headers: {
-        Accept: "application/json"
-      }
-    });
+    console.log("Verifying email with token:", token);
+    if (!token) {
+      return {
+        success: false,
+        status: 400,
+        error: "Verification token is required."
+      };
+    }
+    console.log("Sending verification request to API with token:", token);
+    const response = await API.post("/auth/verify-email", 
+     token 
+    );
+    console.log("Email verification response:", response);
 
     // Check for the specific success response from the API documentation
-    if (response.data && response.data.statusCode === 0) {
+    if (response.data) {
       return {
         success: true,
-        data: response.data
+        data: response
       };
     } else {
       // Handle cases where the HTTP status is 200, but the API indicates an error
