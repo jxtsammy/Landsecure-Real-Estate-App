@@ -273,29 +273,34 @@ const SignUpScreen = ({ navigation }) => {
         }
       }
     } catch (error) {
-      console.error("Registration error:", error)
+      console.error("Registration error:", error);
 
-      // Handle different types of errors
-      let errorMessage = error.message || "Registration failed. Please try again."
+      // Try to extract backend error message
+      let errorMessage = error?.toString() || "An unexpected error occurred. Please try again.";
 
-      // Handle specific error cases
-      if (error.message === "Network connection failed") {
-        errorMessage = "Please check your internet connection and try again."
-      } else if (error.message.includes("Email already exists")) {
-        errorMessage = "This email is already registered. Please use a different email or try logging in."
-      } else if (error.message.includes("Invalid email")) {
-        errorMessage = "Please enter a valid email address."
-      } else if (error.message.includes("Password")) {
-        errorMessage = "Password does not meet requirements. Please check and try again."
+      // Check for backend error structure
+      if (error?.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error?.message) {
+        errorMessage = error.message;
       }
 
-      Alert.alert("Registration Error", errorMessage)
+      // Handle specific error cases
+      if (errorMessage.toLowerCase().includes("email already registered")) {
+        errorMessage = "This email is already registered. Please use a different email or try logging in.";
+      } else if (errorMessage.toLowerCase().includes("invalid email")) {
+        errorMessage = "Please enter a valid email address.";
+      } else if (errorMessage.toLowerCase().includes("password")) {
+        errorMessage = "Password does not meet requirements. Please check and try again.";
+      }
+
+      Alert.alert("Registration Error", errorMessage);
 
       // Clear sensitive fields on error
-      setPassword("")
-      setConfirmPassword("")
-      setPasswordTouched(false)
-      setConfirmPasswordTouched(false)
+      setPassword("");
+      setConfirmPassword("");
+      setPasswordTouched(false);
+      setConfirmPasswordTouched(false);
     } finally {
       setLoading(false)
     }

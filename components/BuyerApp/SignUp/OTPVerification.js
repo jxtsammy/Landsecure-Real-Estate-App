@@ -25,13 +25,13 @@ const { width } = Dimensions.get("window")
 const OTPVerificationScreen = ({ route }) => {
   const navigation = useNavigation()
   const [currentScreen, setCurrentScreen] = useState("verification")
-  const [verificationToken, setVerificationToken] = useState("") // Changed to single string
+  const [verificationToken, setVerificationToken] = useState("")
   const [loading, setLoading] = useState(false)
   const [resendLoading, setResendLoading] = useState(false)
   const [countdown, setCountdown] = useState(0)
   const [canResend, setCanResend] = useState(true)
-
   const [email, setEmail] = useState(route?.params?.email || "")
+  const [emailLoaded, setEmailLoaded] = useState(!!route?.params?.email) // Track if email is loaded
 
   // Get email from AsyncStorage if not provided in route params
   useEffect(() => {
@@ -49,6 +49,7 @@ const OTPVerificationScreen = ({ route }) => {
           setEmail("user@example.com")
         }
       }
+      setEmailLoaded(true)
     }
     getStoredEmail()
   }, [email])
@@ -114,10 +115,13 @@ const OTPVerificationScreen = ({ route }) => {
 
   // Handle continue/verify with real API integration
   const handleContinue = async () => {
-    // Return early if the component is already loading
     if (loading) return
     if (!verificationToken) {
       Alert.alert("Error", "Verification token is missing.")
+      return
+    }
+    if (!email) {
+      Alert.alert("Error", "Email is not loaded yet. Please wait a moment and try again.")
       return
     }
 
@@ -129,17 +133,15 @@ const OTPVerificationScreen = ({ route }) => {
       }
       console.log("Verifying email with:", newData)
       const result = await verifyEmail(newData)
+      console.log("[OTPVerification] Verification result:", result)
 
       if (!result.success) {
-        // Handle API-specific errors here, as the verifyEmail function
-        // returns a clear error message in the result object.
         let errorMessage = result.error || "Unable to verify email. Please try again."
 
         if (errorMessage.includes("invalid or expired") || errorMessage.includes("not found")) {
           errorMessage = "Invalid or expired token. Please request a new one."
         }
 
-        // Check for the specific 'not registered' error
         if (errorMessage.includes("Registration not found")) {
           errorMessage = "Registration not found. Please sign up again."
           Alert.alert("Registration Required", errorMessage, [
@@ -153,9 +155,7 @@ const OTPVerificationScreen = ({ route }) => {
                 if (navigation?.reset) {
                   navigation.reset({
                     index: 0,
-                    routes: [{
-                      name: "RegisterOwner"
-                    }],
+                    routes: [{ name: "RegisterOwner" }],
                   })
                 } else if (navigation?.navigate) {
                   navigation.navigate("RegisterOwner")
@@ -163,7 +163,7 @@ const OTPVerificationScreen = ({ route }) => {
               },
             },
           ])
-          return // Return to prevent the second generic alert
+          return
         }
 
         Alert.alert("Verification Error", errorMessage)
@@ -176,29 +176,30 @@ const OTPVerificationScreen = ({ route }) => {
         refresh_token,
         expires_in_access,
         expires_in_refresh
-      } = result.data
+      } = result.tokens || {}
+
+      const user = result.user ? JSON.stringify(result.user) : ""
 
       console.log("✅ Email verification successful")
 
       // Store all tokens and the verified email
       await AsyncStorage.multiSet([
-        ["accessToken", access_token],
-        ["refreshToken", refresh_token],
-        ["accessExpiresIn", expires_in_access],
-        ["refreshExpiresIn", expires_in_refresh],
+        ["accessToken", access_token || ""],
+        ["refreshToken", refresh_token || ""],
+        ["accessExpiresIn", expires_in_access || ""],
+        ["refreshExpiresIn", expires_in_refresh || ""],
         ["verifiedEmail", email.trim()],
-        ["user",result.data.user]
+        ["user", user]
       ])
 
       // Remove the temporary key and set the screen
       await AsyncStorage.removeItem("pendingVerificationEmail")
       setCurrentScreen("success")
+      console.log("Set currentScreen to success")
 
     } catch (error) {
-      // This catch block is for unexpected, non-API-related errors
       console.error("An unexpected error occurred during verification:", error)
       Alert.alert("Verification Error", "An unexpected error occurred. Please try again.")
-
     } finally {
       setLoading(false)
     }
@@ -311,6 +312,15 @@ const OTPVerificationScreen = ({ route }) => {
       </View>
     </SafeAreaView>
   )
+
+  // Only render when email is loaded
+  if (!emailLoaded) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator size="large" color="#8A3FFC" />
+      </View>
+    )
+  }
 
   return (
     <View style={styles.wrapper}>
