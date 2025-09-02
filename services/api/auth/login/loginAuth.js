@@ -52,6 +52,7 @@ export const loginSeller = async (email, password) => {
         validateStatus: (status) => status < 500 // Don't throw for 4xx
       }
     );
+    console.log("Login response:", response);
 
     // Handle successful login (2xx status)
     if (response.status >= 200 && response.status < 300) {

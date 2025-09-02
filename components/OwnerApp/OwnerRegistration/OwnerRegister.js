@@ -171,23 +171,29 @@ const AuthScreens = ({ navigation }) => {
 
     try {
       setLoading(true)
+      const newData = {
+        email: email.trim(),
+        otp: verificationToken.trim(),
+      }
 
-      console.log("Verifying email with token:", verificationToken)
+      console.log("Verifying email with token:", newData)
 
-      const result = await verifyEmail(verificationToken)
+      const result = await verifyEmail(newData)
+      console.log("Owner Verification result:", result)
 
       if (!result.success) {
         Alert.alert("Verification Error", result.error || "Unable to verify email. Please try again.")
         return
       }
 
-      const { access_token, refresh_token } = result.data.data
+      // FIX: Get tokens from result.tokens
+      const { access_token, refresh_token } = result.tokens || {}
 
       console.log("✅ Email verification successful")
 
       await AsyncStorage.multiSet([
-        ["accessToken", access_token],
-        ["refreshToken", refresh_token],
+        ["accessToken", access_token || ""],
+        ["refreshToken", refresh_token || ""],
       ])
 
       Alert.alert(
