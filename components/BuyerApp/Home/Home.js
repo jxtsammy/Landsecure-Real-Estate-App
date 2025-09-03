@@ -451,7 +451,7 @@ const HomeScreen = ({ navigation }) => {
         <StatusBar barStyle="dark-content" />
         <Text style={styles.headerText}>I am looking for land in</Text>
         {/* Search Bar */}
-        <View style={styles.searchContainer}>
+        {/* <View style={styles.searchContainer}>
           <View style={styles.searchBar}>
             <Search size={20} color="#888" style={styles.searchIcon} />
             <TextInput
@@ -465,7 +465,7 @@ const HomeScreen = ({ navigation }) => {
           <TouchableOpacity style={styles.filterButton} onPress={() => setIsCoordinateModalVisible(true)}>
             <MapPin size={20} color="#000" />
           </TouchableOpacity>
-        </View>
+        </View> */}
         {/* Active coordinate search indicator */}
         {activeCoordinateSearch && (
           <View style={styles.activeSearchContainer}>
@@ -479,7 +479,7 @@ const HomeScreen = ({ navigation }) => {
           </View>
         )}
         {/* Categories */}
-        <FlatList
+        {/* <FlatList
           data={categories}
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -496,7 +496,7 @@ const HomeScreen = ({ navigation }) => {
             </TouchableOpacity>
           )}
           keyExtractor={(item) => item.id}
-        />
+        /> */}
         {/* Property Listings or No Match Message */}
         <View style={styles.propertiesContainer}>
           {isLoading ? (

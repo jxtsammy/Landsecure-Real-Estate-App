@@ -323,9 +323,9 @@ const ChatDetailScreen = ({ route }) => {
         )}
 
         <View style={styles.inputContainer}>
-          <TouchableOpacity style={styles.cameraButton} onPress={pickImage}>
+          {/* <TouchableOpacity style={styles.cameraButton} onPress={pickImage}>
             <ImageIcon color="#8E8E93" size={24} />
-          </TouchableOpacity>
+          </TouchableOpacity> */}
 
           <TextInput
             style={styles.input}
