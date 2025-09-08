@@ -1,5 +1,6 @@
 import API from '../../config'
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 //Get User Config
 export const getUsers = async ({ page = 1, limit = 10 } = {}) => {
   // Validate pagination parameters
@@ -55,8 +56,11 @@ export const getUsers = async ({ page = 1, limit = 10 } = {}) => {
 
 // Helper to get auth token
 const getAuthToken = async () => {
-  return AsyncStorage.getItem('admin_auth_token');
+  return AsyncStorage.getItem('accessToken');
 };
+
+
+
 
 
 //Get User Profile
@@ -78,6 +82,7 @@ export const getUserProfile = async () => {
 
   } catch (error) {
     let errorMessage = 'Failed to fetch profile';
+    console.log('Error fetching profile:', error);
 
     if (error.response) {
       switch (error.response.status) {

@@ -34,7 +34,7 @@ import {
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useNavigation } from '@react-navigation/native';
-import { updateUserProfile, deleteUser, userLogout } from '../../../services/api/userManagement/getUsers/users'
+import { updateUserProfile, deleteUser, userLogout,getUserProfile } from '../../../services/api/userManagement/getUsers/users'
 
 const { width, height } = Dimensions.get('window');
 
@@ -69,7 +69,8 @@ const ProfileSettingsScreen = () => {
     fullName: 'Mike Greenforest',
     username: 'mikeg',
     email: 'mike.greenforest@example.com',
-    password: 'password123',
+    phone: 'password123',
+    profile_picture: null
   });
 
   // State to control form visibility
@@ -210,21 +211,23 @@ const ProfileSettingsScreen = () => {
   };
 
   useEffect(() => {
+
     const fetchUserProfile = async () => {
       try {
         const user = await getUserProfile();
+        console.log('Fetched user profile:', user);
         setUserData({
-          fullName: user.fullName || user.name || '', // Use appropriate field from API
-          username: user.username || '',
+          fullName: user.firstName , // Use appropriate field from API
           email: user.email || '',
-          password: '' // Never store password in state
+          phone: user.phone ,
+          profile_picture: user.profile_picture || null
         });
-        if (user.profileImage) setProfileImage(user.profileImage);
+        if (user.profile_picture) setProfileImage(user.profile_picture);
       } catch (error) {
         Alert.alert('Error', error.message);
       }
     };
-
+console.log('Fetching user profile on mount');
     fetchUserProfile();
   }, []);
 
@@ -232,7 +235,7 @@ const ProfileSettingsScreen = () => {
   const saveUserData = async () => {
     // Filter out unchanged or empty fields
     const updates = {
-      ...(userData.fullName !== 'Mike Greenforest' && { fullName: userData.fullName }),
+      ...(userData.firstName !== 'Mike Greenforest' && { firstName: userData.fisrtName }),
       ...(userData.username !== 'mikeg' && { username: userData.username }),
       ...(userData.email !== 'mike.greenforest@example.com' && { email: userData.email }),
       // Don't send password unless it's being changed (and you should hash it first)
@@ -458,7 +461,7 @@ const ProfileSettingsScreen = () => {
       </Animated.View>
 
       {/* Bottom Container - Animated */}
-      <View
+      <Animated.View
         style={[
           styles.bottomContainer,
           {
@@ -563,10 +566,10 @@ const ProfileSettingsScreen = () => {
             </View>
 
             <View style={styles.formField}>
-              <Text style={styles.fieldLabel}>Username</Text>
+              <Text style={styles.fieldLabel}>Phone Number</Text>
               <TextInput
                 style={styles.input}
-                value={userData.username}
+                value={userData.phone}
                 onChangeText={(text) =>
                   setUserData({ ...userData, username: text })
                 }
@@ -590,7 +593,7 @@ const ProfileSettingsScreen = () => {
               />
             </View>
 
-            <View style={styles.formField}>
+            {/* <View style={styles.formField}>
               <Text style={styles.fieldLabel}>Password</Text>
               <View style={styles.passwordInputContainer}>
                 <TextInput
@@ -612,7 +615,7 @@ const ProfileSettingsScreen = () => {
                   )}
                 </TouchableOpacity>
               </View>
-            </View>
+            </View> */}
 
             {/* Manage Account Section */}
             <Text style={styles.sectionHeader}>Manage Account</Text>
@@ -633,7 +636,7 @@ const ProfileSettingsScreen = () => {
             </TouchableOpacity>
           </ScrollView>
         </Animated.View>
-      </View>
+      </Animated.View>
 
       {/* Delete Account Modal - Bottom Sheet Style */}
       <Modal
