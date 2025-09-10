@@ -21,7 +21,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Edit,
-  User,
   Bell,
   HelpCircle,
   Lock,
