@@ -33,7 +33,7 @@ import { LineChart, BarChart } from 'react-native-chart-kit';
 
 const { width, height } = Dimensions.get('window');
 
-const HomeScreen = ({navigation}) => {
+const HomeScreen = ({ navigation }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [showNotification, setShowNotification] = useState(false);
   const [notificationMessage, setNotificationMessage] = useState('');
@@ -48,7 +48,7 @@ const HomeScreen = ({navigation}) => {
   const user = {
     name: 'Jonathan Anderson',
     email: 'jonathan@email.com',
-    avatar: 'https://randomuser.me/api/portraits/men/32.jpg',
+    avatar: '', // Set this to a user image URL or leave it empty for the default icon
     stats: [
       { label: 'Listings', value: 30 },
       { label: 'Sold', value: 12 },
@@ -327,7 +327,9 @@ const HomeScreen = ({navigation}) => {
                 {user.stats[0].value} listings
               </Text>
               <View style={styles.listingsActions}>
-                <TouchableOpacity style={styles.addButton} onPress={() => navigation.navigate('AddProperty')}>
+                <TouchableOpacity
+                  style={styles.addButton}
+                  onPress={() => navigation.navigate('AddProperty')}>
                   <Plus size={20} color="#fff" />
                 </TouchableOpacity>
               </View>
@@ -618,7 +620,13 @@ const HomeScreen = ({navigation}) => {
       <View style={styles.profileSection}>
         <View style={styles.profileHeader}>
           <View style={styles.avatarContainer}>
-            <Image source={{ uri: user.avatar }} style={styles.avatar} />
+            {user.avatar ? (
+              <Image source={{ uri: user.avatar }} style={styles.avatar} />
+            ) : (
+              <View style={styles.defaultAvatar}>
+                <User size={40} color="#000" />
+              </View>
+            )}
             <TouchableOpacity style={styles.editButton}>
               <User size={14} color="#fff" />
             </TouchableOpacity>
@@ -741,6 +749,14 @@ const styles = StyleSheet.create({
     width: 70,
     height: 70,
     borderRadius: 35,
+  },
+  defaultAvatar: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: '#ccc',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   editButton: {
     position: 'absolute',
