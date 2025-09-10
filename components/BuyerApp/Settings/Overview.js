@@ -27,7 +27,7 @@ import {
   Lock,
   FileText,
   LogOut,
-  Eye,
+  User,
   EyeOff,
   AlertTriangle,
   AlertCircle,
@@ -62,9 +62,7 @@ const ProfileSettingsScreen = () => {
   const logoutModalAnim = useRef(new Animated.Value(height)).current;
 
   // State for user data
-  const [profileImage, setProfileImage] = useState(
-    'https://randomuser.me/api/portraits/men/32.jpg'
-  );
+  const [profileImage, setProfileImage] = useState(null);
   const [userData, setUserData] = useState({
     fullName: 'Mike Greenforest',
     username: 'mikeg',
@@ -235,9 +233,9 @@ console.log('Fetching user profile on mount');
   const saveUserData = async () => {
     // Filter out unchanged or empty fields
     const updates = {
-      ...(userData.firstName !== 'Mike Greenforest' && { firstName: userData.fisrtName }),
-      ...(userData.username !== 'mikeg' && { username: userData.username }),
-      ...(userData.email !== 'mike.greenforest@example.com' && { email: userData.email }),
+      ...(userData.firstName !== 'John Doe' && { firstName: userData.fisrtName }),
+      ...(userData.username !== 'jdoe' && { username: userData.username }),
+      ...(userData.email !== 'john.doe@example.com' && { email: userData.email }),
       // Don't send password unless it's being changed (and you should hash it first)
     };
 
@@ -445,9 +443,16 @@ console.log('Fetching user profile on mount');
       <Animated.View
         style={[styles.profileSection, { opacity: profileOpacityAnim }]}>
         <View style={styles.profileImageContainer}>
-          <Image source={{ uri: profileImage }} style={styles.profileImage} />
-          <View style={styles.onlineIndicator} />
-        </View>
+          {/* Use conditional rendering to show the image or the icon */}
+          {profileImage ? (
+            <Image source={{ uri: profileImage }} style={styles.profileImage} />
+          ) : (
+            <View style={[styles.profileImage, styles.defaultProfile]}>
+              <User size={40} color="#666" />
+            </View>
+          )}
+          <View style={styles.onlineIndicator} />
+        </View>
 
         <View style={styles.profileInfo}>
           <View style={styles.nameRow}>
@@ -756,18 +761,24 @@ const styles = StyleSheet.create({
     paddingVertical: 24,
   },
   profileImageContainer: {
-    position: 'relative',
-    alignSelf: 'flex-start',
-    marginBottom: 16,
-  },
-  profileImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#E2E8F0',
-    borderWidth: 2,
-    borderColor: 'rgba(107, 70, 193, 0.3)',
-  },
+        position: 'relative',
+        alignSelf: 'flex-start',
+        marginBottom: 16,
+      },
+      profileImage: {
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        backgroundColor: '#E2E8F0',
+        borderWidth: 2,
+        borderColor: 'rgba(107, 70, 193, 0.3)',
+      },
+      defaultProfile: {
+        backgroundColor: '#CCC',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 0,
+      },
   onlineIndicator: {
     position: 'absolute',
     bottom: 0,
